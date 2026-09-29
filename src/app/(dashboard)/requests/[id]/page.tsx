@@ -266,7 +266,7 @@ export default function AssignmentDetailPage() {
             <h2 className="text-[18px] font-medium text-gray-900 mb-2">Overview</h2>
             <div className="flex flex-col">
               {Object.entries(assignment.overview).map(([key, val]) => (
-                <DataRow key={key} label={formatLabel(key)} value={val as React.ReactNode} />
+                <DataRow key={key} label={formatLabel(key)} value={String(val)} />
               ))}
             </div>
           </div>
@@ -275,7 +275,7 @@ export default function AssignmentDetailPage() {
             <h2 className="text-[18px] font-medium text-gray-900 mb-2">Assignment details</h2>
             <div className="flex flex-col">
               {Object.entries(assignment.details).map(([key, val]) => (
-                <DataRow key={key} label={formatLabel(key)} value={val as React.ReactNode} />
+                <DataRow key={key} label={formatLabel(key)} value={String(val)} />
               ))}
             </div>
           </div>
@@ -284,7 +284,7 @@ export default function AssignmentDetailPage() {
             <h2 className="text-[18px] font-medium text-gray-900 mb-2">On-site details</h2>
             <div className="flex flex-col">
               {Object.entries(assignment.onsite).map(([key, val]) => (
-                <DataRow key={key} label={formatLabel(key)} value={val as React.ReactNode} />
+                <DataRow key={key} label={formatLabel(key)} value={String(val)} />
               ))}
             </div>
           </div>
@@ -300,7 +300,7 @@ export default function AssignmentDetailPage() {
             <h2 className="text-[18px] font-medium text-gray-900 mb-2">Requester and internal information</h2>
             <div className="flex flex-col">
               {Object.entries(assignment.requester).map(([key, val]) => (
-                <DataRow key={key} label={formatLabel(key)} value={val as React.ReactNode} />
+                <DataRow key={key} label={formatLabel(key)} value={String(val)} />
               ))}
             </div>
             <p className="text-xs text-gray-400 mt-4">
