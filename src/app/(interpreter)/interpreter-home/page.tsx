@@ -1,0 +1,249 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { Calendar, MapPin } from "lucide-react";
+import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
+
+export default function InterpreterHomePage() {
+  const { jobs } = useInterpreterJobs();
+
+  const visibleAppointments = jobs.filter((job) => job.status !== "declined" && job.status !== "released").length;
+  const upcomingBookings = jobs.filter((job) => job.status === "booked").length;
+  const pendingOffers = jobs.filter((job) => job.status === "pending").length;
+  const hoursToSubmit = jobs.filter((job) => job.status === "booked" && job.serviceRecordState === "not_started").length;
+
+  return (
+    <div className="max-w-[1200px] mx-auto p-4 md:p-8 w-full space-y-8 pb-24 antialiased">
+      {/* Banner */}
+      <div className="bg-[#E2EBE5] rounded-xl px-5 py-2.5 text-[13px] font-medium text-gray-800 flex items-center w-full">
+        Test workspace — fictional information only
+      </div>
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4">
+        <div>
+          <h1 className="text-4xl font-semibold tracking-tight text-gray-900 mb-2">
+            Welcome, Dale
+          </h1>
+          <p className="text-gray-500 text-lg">
+            Your interpreting work, across your agencies.
+          </p>
+        </div>
+        <Link
+          href="/interpreter-calendar"
+          className="flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-800 px-6 py-2.5 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors w-full md:w-auto shadow-sm"
+        >
+          <Calendar className="w-4 h-4" />
+          My calendar
+        </Link>
+      </div>
+
+      {/* Stats Card */}
+      <div className="bg-[#1B433C] rounded-[24px] p-6 text-white shadow-sm mt-8">
+        <h2 className="text-[12px] font-medium text-[#8BA49E] mb-6">
+          Current connected work
+        </h2>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-semibold tracking-wider text-[#8BA49E] mb-2 uppercase">
+              Visible appointments
+            </span>
+            <span className="text-[28px] font-medium tracking-tight text-white leading-none">
+              {visibleAppointments}
+            </span>
+          </div>
+
+          <div className="flex flex-col border-l border-white/10 pl-4 md:border-l md:border-white/10 md:pl-4">
+            <span className="text-[10px] font-semibold tracking-wider text-[#8BA49E] mb-2 uppercase">
+              Upcoming bookings
+            </span>
+            <span className="text-[28px] font-medium tracking-tight text-white leading-none">
+              {upcomingBookings}
+            </span>
+          </div>
+
+          <div className="flex flex-col md:border-l border-white/10 md:pl-4 pt-4 md:pt-0">
+            <span className="text-[10px] font-semibold tracking-wider text-[#8BA49E] mb-2 uppercase">
+              Pending offers
+            </span>
+            <span className="text-[28px] font-medium tracking-tight text-white leading-none">
+              {pendingOffers}
+            </span>
+          </div>
+
+          <div className="flex flex-col border-l border-white/10 pl-4 md:border-l md:border-white/10 md:pl-4 pt-4 md:pt-0">
+            <span className="text-[10px] font-semibold tracking-wider text-[#8BA49E] mb-2 uppercase">
+              Connected agencies
+            </span>
+            <span className="text-[28px] font-medium tracking-tight text-white leading-none">
+              1
+            </span>
+          </div>
+
+          <div className="flex flex-col border-l border-white/10 pl-4 -ml-4 mt-2 md:mt-0 pt-4 md:pt-0">
+            <span className="text-[10px] font-semibold tracking-wider text-[#8BA49E] mb-2 uppercase">
+              Hours to submit
+            </span>
+            <span className="text-[28px] font-medium tracking-tight text-white leading-none">
+              {hoursToSubmit}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Layout below stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+        {/* Left Column (2/3) */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Your Offers */}
+          <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100">
+            <h2 className="text-lg font-medium text-gray-900 mb-6">Your offers</h2>
+
+            {pendingOffers === 0 ? (
+              <p className="text-[14px] text-gray-500">
+                Nothing needs your attention right now.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {jobs
+                  .filter((job) => job.status === "pending")
+                  .map((job) => (
+                    <div
+                      key={job.id}
+                      className="bg-[#F9F8F4] rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-gray-100/50"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-2 h-2 rounded-full bg-[#9B1C1C] mt-2 shrink-0" />
+                        <div>
+                          <h3 className="text-[15px] font-medium text-gray-900 mb-1">
+                            Offer received — {job.title}
+                          </h3>
+                          <p className="text-[13px] text-gray-500">
+                            Expires Fri, Oct 2 · 12:00 AM GMT+8. Pending offers do not reserve time.
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        href={`/jobs/${job.id}`}
+                        className="text-[13px] font-medium text-gray-700 hover:text-gray-900 bg-white border border-gray-200 rounded-full px-4 py-2 shrink-0 md:w-auto w-full text-center transition-colors shadow-sm"
+                      >
+                        Review offer
+                      </Link>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Upcoming Bookings */}
+          <div>
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h2 className="text-lg font-medium text-gray-900">Upcoming bookings</h2>
+              <Link
+                href="/interpreter-calendar"
+                className="text-[13px] font-medium text-gray-600 hover:text-gray-900 hover:underline shrink-0"
+              >
+                Open calendar &rarr;
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {jobs
+                .filter((job) => job.status === "booked")
+                .map((job) => {
+                  const locationParts = job.location.split("·");
+                  const locPrimary = locationParts[0]?.trim();
+                  const locSecondary = locationParts[1]?.trim();
+
+                  return (
+                    <Link
+                      key={job.id}
+                      href={`/jobs/${job.id}`}
+                      className="block bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 mb-2">
+                        <div className="text-[11px] font-bold tracking-wider text-[#A0522D] uppercase mt-1">
+                          {job.dateString}
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="bg-[#E2EBE5] text-[#1B433C] text-[12px] font-medium px-3 py-1 rounded-full w-max shrink-0">
+                            Booked
+                          </div>
+                          {job.hasAutoFill && (
+                            <div className="bg-[#FCE8E6] text-[#A0522D] text-[12px] font-medium px-3 py-1 rounded-full w-max shrink-0">
+                              Auto Fill
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 my-2">
+                        {job.title}
+                      </h3>
+                      <div className="flex items-start gap-2 mb-4">
+                        <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-1" />
+                        <div className="text-[14px]">
+                          <span className="text-gray-900 block">{locPrimary}</span>
+                          <span className="text-gray-500">{locSecondary}</span>
+                        </div>
+                      </div>
+                      
+                      {job.hasAutoFill && (
+                        <p className="text-[13px] text-gray-500 mb-4">
+                          Booked by {locSecondary?.split('(')[0]?.trim()} using your Auto Fill permission.
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        <span className="text-[12px] font-medium text-gray-600 border border-gray-200 px-3 py-1 rounded-full">
+                          Setting pending
+                        </span>
+                        {job.isVirtual && (
+                          <span className="text-[12px] font-medium text-gray-600 border border-gray-200 px-3 py-1 rounded-full">
+                            Virtual
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* Unavailable card */}
+          <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 md:w-2/3 mt-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">
+              Unavailable in this test workspace
+            </h2>
+            <p className="text-[14px] text-gray-500 leading-relaxed">
+              Billing, payments and integrations are unavailable. Notifications
+              appear inside the app, and you can turn on optional email notices
+              in Settings. Nothing is texted or pushed to your device.
+            </p>
+          </div>
+        </div>
+
+        {/* Right Column (1/3) */}
+        <div className="lg:col-span-1">
+          {/* Recent Activity */}
+          <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 min-h-[250px]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-medium text-gray-900">Recent activity</h2>
+              <Link
+                href="#"
+                className="text-[13px] font-medium text-gray-600 hover:text-gray-900 hover:underline"
+              >
+                All notifications &rarr;
+              </Link>
+            </div>
+            <p className="text-[14px] text-gray-500 leading-relaxed">
+              Auto Fill bookings and newly shared prep materials will appear here.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
