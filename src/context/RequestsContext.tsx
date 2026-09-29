@@ -17,6 +17,9 @@ export interface RequestItem {
   prepNotes?: string;
   privateNotes?: string;
   activity?: string;
+  location?: string;
+  organization?: string;
+  format?: string;
 }
 
 interface RequestsContextType {
