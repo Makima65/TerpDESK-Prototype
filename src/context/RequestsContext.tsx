@@ -20,6 +20,8 @@ export interface RequestItem {
   location?: string;
   organization?: string;
   format?: string;
+  pendingOffer?: boolean | string;
+  serviceRecordState?: string;
 }
 
 interface RequestsContextType {
