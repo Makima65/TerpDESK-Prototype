@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { InterpreterJobsProvider } from "@/context/InterpreterJobsContext";
+import { NotificationBell } from "@/components/NotificationBell";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function InterpreterLayout({ children }: { children: React.ReactNode }) {
@@ -134,11 +135,8 @@ export default function InterpreterLayout({ children }: { children: React.ReactN
               <Link href="/dashboard" className="text-[13px] font-medium text-[#0B3B32] hover:underline underline-offset-4 hidden sm:block">
                 Switch to Agency
               </Link>
-              <div className="relative cursor-pointer hover:text-gray-900 text-gray-500 transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute -top-1.5 -right-1.5 bg-[#9B1C1C] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-[#F9F8F4]">
-                  1
-                </span>
+              <div className="relative mt-1">
+                <NotificationBell />
               </div>
               <Link href="/" className="text-[14px] font-medium text-gray-700 hover:text-gray-900 transition-colors hidden md:block">
                 Sign out

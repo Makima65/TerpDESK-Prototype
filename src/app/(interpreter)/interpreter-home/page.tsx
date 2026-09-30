@@ -17,10 +17,6 @@ export default function InterpreterHomePage() {
  return (
  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-4 md:p-8 w-full space-y-8 pb-24 antialiased">
  {/* Banner */}
- <div className="bg-[#E2EBE5] rounded-xl px-5 py-2.5 text-[13px] font-medium text-gray-800 flex items-center w-full">
- Test workspace — fictional information only
- </div>
-
  {/* Header */}
  <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4">
  <div>

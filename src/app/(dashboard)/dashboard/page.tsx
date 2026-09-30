@@ -56,10 +56,6 @@ export default function DashboardPage() {
  
  {/* Banners & Inputs */}
  <div className="space-y-6">
- <div className="rounded-full bg-[#E6EFEA] px-6 py-3.5 text-sm font-medium text-[#385B52]">
- Test workspace — fictional information only
- </div>
- 
  <div className="space-y-1.5 w-full">
  <label className="pl-5 text-[13px] font-medium text-[var(--sage)]">Agency</label>
  <div className="rounded-full bg-[#F3F2EE] px-6 py-3.5 text-[15px] text-slate-600 border border-neutral-200/50">
@@ -91,20 +87,20 @@ export default function DashboardPage() {
  <span className="text-[11px] font-semibold tracking-widest text-[#8BA49E]">APPOINTMENTS</span>
  <span className="text-[28px] font-medium leading-none">{totalAppointments}</span>
  </Link>
- <Link href="/requests" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
+ <Link href="/requests?filter=needing-coverage" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
  <span className="text-[11px] font-semibold tracking-widest text-[#8BA49E]">NEEDING COVERAGE</span>
  <span className="text-[28px] font-medium leading-none">{needingCoverage}</span>
  </Link>
- <Link href="/requests" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
+ <Link href="/requests?filter=pending-offers" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
  <span className="text-[11px] font-semibold tracking-widest text-[#8BA49E]">PENDING OFFERS</span>
  <span className="text-[28px] font-medium leading-none">{pendingOffersCount}</span>
  </Link>
- <Link href="/requests" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
+ <Link href="/requests?filter=staff-follow-up" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
  <span className="text-[11px] font-semibold tracking-widest text-[#8BA49E]">STAFF FOLLOW-UP</span>
  <span className="text-[28px] font-medium leading-none">{staffFollowUpCount}</span>
  </Link>
  
- <Link href="/requests" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
+ <Link href="/requests?filter=needs-replacement" className="flex flex-col gap-2 text-left hover:opacity-75 transition-opacity cursor-pointer">
  <span className="text-[11px] font-semibold tracking-widest text-[#8BA49E]">NEEDS REPLACEMENT</span>
  <span className="text-[28px] font-medium leading-none">{needsReplacementCount}</span>
  </Link>

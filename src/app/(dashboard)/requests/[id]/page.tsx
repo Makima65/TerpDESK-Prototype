@@ -4,12 +4,14 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRequests } from "@/context/RequestsContext";
+import { useGlobalState } from "@/context/GlobalContext";
 import { ChevronDown } from "lucide-react";
 
-const mockInterpreters = [
- { id: '1', name: 'Dale Fictional', isAutoFillEligible: true },
- { id: '2', name: 'Avery Fictional', isAutoFillEligible: false }
-];
+function getMockInterpreterDetails(id: string) {
+  if (id === 'terp-1') return { name: "Active Interpreter" };
+  if (id === 'terp-new') return { name: "New Interpreter" };
+  return { name: `Interpreter ${id}` };
+}
 
 function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
  return (
@@ -27,11 +29,20 @@ function formatLabel(key: string) {
 }
 
 export default function AssignmentDetailPage() {
- const params = useParams();
- const id = params?.id as string;
- const { requests, updateRequest } = useRequests();
+  const params = useParams();
+  const id = params?.id as string;
+  const { requests, updateRequest } = useRequests();
+  const { currentUser, memberships } = useGlobalState();
 
- const [recipient, setRecipient] = useState('');
+  const agencyId = currentUser.agency_id || "agency-1";
+  const activeMemberships = memberships.filter(m => m.agency_id === agencyId && m.active);
+  const activeRoster = activeMemberships.map(m => ({
+    id: m.user_id,
+    name: getMockInterpreterDetails(m.user_id).name,
+    isAutoFillEligible: true
+  }));
+
+  const [recipient, setRecipient] = useState('');
  const [autoBookRecipient, setAutoBookRecipient] = useState('');
  const [expiryDate, setExpiryDate] = useState('');
  const [expiryTime, setExpiryTime] = useState('');
@@ -110,7 +121,7 @@ export default function AssignmentDetailPage() {
  };
 
  const handleAutoBook = () => {
- const selectedName = mockInterpreters.find(i => i.id === autoBookRecipient)?.name || 'Unknown Interpreter';
+ const selectedName = activeRoster.find(i => i.id === autoBookRecipient)?.name || 'Unknown Interpreter';
  setBookedInterpreter(selectedName);
 
  localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ bookedInterpreter: selectedName, previousOffers }));
@@ -151,7 +162,7 @@ export default function AssignmentDetailPage() {
  return;
  }
 
- const selectedName = mockInterpreters.find(i => i.id === recipient)?.name || 'Unknown Interpreter';
+ const selectedName = activeRoster.find(i => i.id === recipient)?.name || 'Unknown Interpreter';
  const newOffer = { interpreterName: selectedName, date: expiryDate, time: expiryTime };
  setPendingOffer(newOffer);
  setErrorMessage('');
@@ -210,10 +221,6 @@ export default function AssignmentDetailPage() {
  return (
  <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 space-y-6 pb-24 antialiased">
  {/* Test Banner */}
- <div className="rounded-full bg-[#E6EFEA] px-6 py-3.5 text-sm font-medium text-[#385B52] mb-6">
- Test workspace — fictional information only
- </div>
- 
  {/* Back Link */}
  <Link href="/requests" className="inline-flex items-center gap-2 text-[var(--sage)] hover:text-[var(--ink)] mb-4 transition-colors">
  ← Back to assignments
@@ -408,7 +415,7 @@ export default function AssignmentDetailPage() {
  onChange={(e) => setRecipient(e.target.value)}
  >
  <option value="">Choose an interpreter</option>
- {mockInterpreters.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+ {activeRoster.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
  </select>
  </div>
  
@@ -475,7 +482,7 @@ export default function AssignmentDetailPage() {
  const val = e.target.value;
  setAutoBookRecipient(val);
  if (val) {
- const interpreter = mockInterpreters.find(i => i.id === val);
+ const interpreter = activeRoster.find(i => i.id === val);
  setIsEligible(interpreter?.isAutoFillEligible ?? null);
  } else {
  setIsEligible(null);
@@ -483,7 +490,7 @@ export default function AssignmentDetailPage() {
  }}
  >
  <option value="">Choose an interpreter</option>
- {mockInterpreters.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+ {activeRoster.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
  </select>
  </div>
  {isEligible === false && <p className="text-[var(--sage)] text-sm mb-4">Not eligible for Auto Fill: This interpreter is not sharing availability with your agency. You can still send an offer.</p>}

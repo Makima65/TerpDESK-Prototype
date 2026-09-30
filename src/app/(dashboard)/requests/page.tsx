@@ -3,7 +3,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRequests } from "@/context/RequestsContext";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import { Suspense } from "react";
 import { RefreshCw, Building2, MapPin, Users2, ChevronDown } from "lucide-react";
 
 function CustomSelect({ options, value, onChange }: { options: string[], value: string, onChange: (val: string) => void }) {
@@ -80,15 +82,25 @@ function StatusBadge({ status }: { status: string }) {
  );
 }
 
-export default function RequestsPage() {
- const { requests } = useRequests();
- const [searchQuery, setSearchQuery] = useState("");
- const [orgFilter, setOrgFilter] = useState("All organizations");
- const [formatFilter, setFormatFilter] = useState("All formats");
- const [statusFilter, setStatusFilter] = useState("Appointments");
+function RequestsPageContent() {
+  const { requests } = useRequests();
+  const searchParams = useSearchParams();
+  const filterParam = searchParams.get("filter");
 
- const filteredRequests = requests.filter(req => {
- const searchLower = searchQuery.toLowerCase();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [orgFilter, setOrgFilter] = useState("All organizations");
+  const [formatFilter, setFormatFilter] = useState("All formats");
+
+  let initialStatus = "Appointments";
+  if (filterParam === "needing-coverage") initialStatus = "Needing coverage";
+  else if (filterParam === "pending-offers") initialStatus = "Pending offers";
+  else if (filterParam === "staff-follow-up") initialStatus = "Staff follow-up";
+  else if (filterParam === "needs-replacement") initialStatus = "Needs replacement";
+
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+
+  const filteredRequests = requests.filter(req => {
+    const searchLower = searchQuery.toLowerCase();
  const titleMatch = req.title.toLowerCase().includes(searchLower);
  const refMatch = req.id.toLowerCase().includes(searchLower);
  const orgMatch = req.requester?.org?.toLowerCase().includes(searchLower) || false;
@@ -107,8 +119,10 @@ export default function RequestsPage() {
  
  if (statusFilter !== "Appointments") {
  if (statusFilter === "Cancelled" && req.status !== "Cancelled") return false;
- if (statusFilter === "Pending offers" && req.status !== "Awaiting response" && req.status !== "Offer awaiting response") return false;
- if (statusFilter === "Needing coverage" && req.status !== "Unfilled / draft") return false;
+ if (statusFilter === "Pending offers" && req.status !== "Awaiting response" && req.status !== "Offer awaiting response" && !req.status.includes("Awaiting")) return false;
+ if (statusFilter === "Needing coverage" && req.status !== "Unfilled / draft" && !req.status.includes("Unfilled")) return false;
+ if (statusFilter === "Staff follow-up" && req.status !== "Partially staffed" && req.status !== "Staff follow-up") return false;
+ if (statusFilter === "Needs replacement" && req.status !== "Needs replacement") return false;
  }
  
  return true;
@@ -119,11 +133,6 @@ export default function RequestsPage() {
 
  return (
  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mx-auto max-w-[1200px] space-y-6 pt-2">
- {/* Test Workspace Banner */}
- <div className="rounded-full bg-[#E6EFEA] px-6 py-3.5 text-sm font-medium text-[#385B52] mb-10">
- Test workspace — fictional information only
- </div>
-
  {/* Header Row */}
  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
  <div className="space-y-1.5">
@@ -135,12 +144,12 @@ export default function RequestsPage() {
  </p>
  </div>
  <div className="flex items-center gap-3">
- <button className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-slate-600 hover:bg-neutral-50 transition-colors">
+ <button onClick={() => window.location.reload()} className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-slate-600 hover:bg-neutral-50 transition-colors">
  <RefreshCw className="h-[18px] w-[18px]" />
  </button>
- <button className="h-11 rounded-full bg-[var(--forest)] px-6 text-[14px] font-medium text-[var(--canvas)] transition-opacity hover:opacity-90 whitespace-nowrap shrink-0">
+ <Link href="/requests/new" className="flex items-center h-11 rounded-full bg-[var(--forest)] px-6 text-[14px] font-medium text-[var(--canvas)] transition-opacity hover:opacity-90 whitespace-nowrap shrink-0">
  New request
- </button>
+ </Link>
  </div>
  </div>
 
@@ -307,4 +316,12 @@ export default function RequestsPage() {
  </div>
  </motion.div>
  );
+}
+
+export default function RequestsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading requests...</div>}>
+      <RequestsPageContent />
+    </Suspense>
+  );
 }

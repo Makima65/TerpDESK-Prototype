@@ -12,10 +12,6 @@ export default function InterpreterCalendarPage() {
  <div className="max-w-[1200px] mx-auto p-4 md:p-8 w-full pb-24 antialiased">
  
  {/* Banner */}
- <div className="bg-[#E2EBE5] rounded-xl px-5 py-2.5 text-[13px] font-medium text-gray-800 flex items-center w-full mb-8">
- Test workspace — fictional information only
- </div>
-
  {/* Header */}
  <div>
  <h1 className="text-3xl font-semibold tracking-tight text-[var(--ink)] mb-2">

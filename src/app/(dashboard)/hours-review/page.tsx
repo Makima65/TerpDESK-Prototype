@@ -234,10 +234,6 @@ export default function HoursReviewPage() {
 
  return (
  <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 space-y-6 pb-24 antialiased pt-6">
- <div className="rounded-full bg-[#E6EFEA] px-6 py-3.5 text-sm font-medium text-[#385B52] mb-6">
- Test workspace — fictional information only
- </div>
-
  <div>
  <h1 className="text-3xl font-bold text-[var(--ink)] mb-2">Hours review</h1>
  <p className="text-sm text-[var(--sage)] mb-6">

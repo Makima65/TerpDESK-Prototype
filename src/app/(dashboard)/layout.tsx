@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { RequestsProvider } from "@/context/RequestsContext";
 import { ClientsProvider } from "@/context/ClientsContext";
+import { NotificationBell } from "@/components/NotificationBell";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -104,12 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Avery North · Agency
               </div>
               <div className="flex items-center gap-4 md:gap-6">
-                <button className="relative text-slate-500 hover:text-slate-700">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#9E3929] text-[10px] font-bold text-white">
-                    2
-                  </span>
-                </button>
+                <NotificationBell />
                 <Link href="#" className="text-sm text-slate-500 hover:text-slate-700">
                   Sign out
                 </Link>

@@ -2,10 +2,6 @@ export default function BillingPage() {
  return (
  <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
  {/* Top Banner */}
- <div className="rounded-full bg-[#E6EFEA] px-6 py-3.5 text-sm font-medium text-[#385B52] mb-6">
- Test workspace — fictional information only
- </div>
-
  {/* Deferred Workflow Card */}
  <div className="bg-white rounded-2xl border border-gray-200 p-6 border border-gray-200 mt-6">
  <h2 className="text-lg font-semibold text-[var(--ink)] mb-3">This workflow is deferred</h2>
