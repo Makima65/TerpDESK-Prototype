@@ -19,11 +19,14 @@ import {
   Settings,
   Bell,
   Menu,
+  X,
 } from "lucide-react";
 import { InterpreterJobsProvider } from "@/context/InterpreterJobsContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function InterpreterLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F9F8F4] font-sans text-slate-900">
@@ -140,7 +143,7 @@ export default function InterpreterLayout({ children }: { children: React.ReactN
               <Link href="/" className="text-[14px] font-medium text-gray-700 hover:text-gray-900 transition-colors hidden md:block">
                 Sign out
               </Link>
-              <button className="md:hidden text-slate-500 hover:text-slate-900 transition-colors">
+              <button onClick={() => setIsMenuOpen(true)} className="md:hidden text-slate-500 hover:text-slate-900 transition-colors">
                 <Menu className="w-6 h-6" />
               </button>
             </div>
@@ -155,8 +158,117 @@ export default function InterpreterLayout({ children }: { children: React.ReactN
         </div>
       </main>
 
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "tween", duration: 0.3 }}
+            className="fixed inset-0 z-[100] h-full w-full bg-[var(--canvas)] flex flex-col"
+          >
+            {/* Header (Logo & Close) */}
+            <div className="flex justify-between items-center p-6 border-b border-neutral-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <Image
+                  src="/terpdesk-mark.png"
+                  alt="terpDESK Logo"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-lg object-contain bg-white p-1"
+                  priority
+                />
+                <span className="text-[var(--forest)] font-semibold text-[22px]">terpDESK</span>
+              </div>
+              <button 
+                onClick={() => setIsMenuOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="flex flex-col gap-2 p-6 overflow-y-auto">
+              <Link href="/interpreter-home" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname === '/interpreter-home' ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Home strokeWidth={1.5} className="h-5 w-5" />
+                Home
+              </Link>
+              <Link href="/jobs" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/jobs') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Briefcase strokeWidth={1.5} className="h-5 w-5" />
+                Jobs
+              </Link>
+              <Link href="/interpreter-calendar" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/interpreter-calendar') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Calendar strokeWidth={1.5} className="h-5 w-5" />
+                Calendar
+              </Link>
+              <Link href="#" onClick={() => setIsMenuOpen(false)} className={`flex items-center justify-between rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/people') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <div className="flex items-center gap-4">
+                  <Users strokeWidth={1.5} className="h-5 w-5" />
+                  People
+                </div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-400">Later</span>
+              </Link>
+              <Link href="#" onClick={() => setIsMenuOpen(false)} className={`flex items-center justify-between rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/money') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <div className="flex items-center gap-4">
+                  <CircleDollarSign strokeWidth={1.5} className="h-5 w-5" />
+                  Money
+                </div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-400">Later</span>
+              </Link>
+              <Link href="/mileage" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/mileage') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Navigation strokeWidth={1.5} className="h-5 w-5" />
+                Mileage
+              </Link>
+              <Link href="#" onClick={() => setIsMenuOpen(false)} className={`flex items-center justify-between rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/ceus') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <div className="flex items-center gap-4">
+                  <GraduationCap strokeWidth={1.5} className="h-5 w-5" />
+                  CEUs
+                </div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-400">Later</span>
+              </Link>
+              <Link href="/prep" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/prep') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <FileText strokeWidth={1.5} className="h-5 w-5" />
+                Prep
+              </Link>
+              <Link href="/agencies" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/agencies') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Building strokeWidth={1.5} className="h-5 w-5" />
+                Agencies
+              </Link>
+              <Link href="#" onClick={() => setIsMenuOpen(false)} className={`flex items-center justify-between rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/connections') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <div className="flex items-center gap-4">
+                  <Network strokeWidth={1.5} className="h-5 w-5" />
+                  Connections
+                </div>
+                <span className="text-[11px] uppercase tracking-wider text-slate-400">Later</span>
+              </Link>
+              <Link href="/profile" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/profile') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <User strokeWidth={1.5} className="h-5 w-5" />
+                My Profile
+              </Link>
+              <Link href="/interpreter-settings" onClick={() => setIsMenuOpen(false)} className={`flex items-center gap-4 rounded-full px-5 py-3.5 text-[15px] font-medium transition-colors ${pathname.startsWith('/interpreter-settings') ? 'bg-[var(--surface)] text-[var(--forest)]' : 'text-slate-600 hover:bg-neutral-100 hover:text-slate-900'}`}>
+                <Settings strokeWidth={1.5} className="h-5 w-5" />
+                Settings
+              </Link>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-auto p-6 border-t border-neutral-100">
+              <div className="flex flex-col gap-1 mb-6">
+                <span className="text-[15px] font-semibold text-[var(--ink)]">Dale Fictional</span>
+                <span className="text-sm text-[var(--sage)]">terp.declined@fictional.test</span>
+              </div>
+              <div className="flex flex-col gap-4">
+                <Link href="/dashboard" onClick={() => setIsMenuOpen(false)} className="text-slate-600 text-[15px] font-medium hover:text-[var(--forest)]">Switch to Agency</Link>
+                <Link href="/" onClick={() => setIsMenuOpen(false)} className="text-red-600 text-[15px] font-medium hover:text-red-700">Sign out</Link>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 w-full bg-[#F9F8F4] border-t border-neutral-200 flex justify-between items-center px-2 py-2 md:hidden z-50 pb-[env(safe-area-inset-bottom,0.5rem)]">
+      <nav className="fixed bottom-0 left-0 w-full bg-[#F9F8F4] border-t border-neutral-200 flex justify-between items-center px-2 py-2 md:hidden z-40 pb-[env(safe-area-inset-bottom,0.5rem)]">
         <Link href="/interpreter-home" className={`flex flex-col items-center justify-center rounded-2xl px-5 py-2 ${pathname === '/interpreter-home' ? 'bg-[#E6EFEA] text-[#385B52]' : 'text-slate-500'}`}>
           <Home className="h-5 w-5 mb-1" />
           <span className="text-[10px] font-medium">Home</span>

@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 :root {
+  --canvas: #F9F8F4;
+  --surface: #E2EBE5;
+  --forest: #0B3B32;
+  --ink: #0f172a;
+  --sage: #64748b;
+
   --background: #F9F8F4;
   --foreground: #0f172a;
 }

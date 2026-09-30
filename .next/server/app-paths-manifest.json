@@ -1,7 +1,8 @@
 {
-  "/login/page": "app/login/page.js",
-  "/(dashboard)/requests/page": "app/(dashboard)/requests/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
-  "/(dashboard)/requests/[id]/page": "app/(dashboard)/requests/[id]/page.js",
-  "/(dashboard)/website-requests/page": "app/(dashboard)/website-requests/page.js"
+  "/(dashboard)/requests/new/page": "app/(dashboard)/requests/new/page.js",
+  "/(interpreter)/jobs/[id]/page": "app/(interpreter)/jobs/[id]/page.js",
+  "/(dashboard)/requests/page": "app/(dashboard)/requests/page.js",
+  "/(interpreter)/interpreter-home/page": "app/(interpreter)/interpreter-home/page.js"
 }
