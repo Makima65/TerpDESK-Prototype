@@ -9,11 +9,33 @@ import { motion } from "framer-motion";
 type Tab = "upcoming" | "past";
 
 export default function InterpreterJobsPage() {
- const { jobs } = useInterpreterJobs();
+  const { jobs } = useInterpreterJobs();
+  const [offers, setOffers] = React.useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = window.localStorage.getItem('terpdesk_offers');
+      return item ? JSON.parse(item) : [];
+    } catch (error) {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    const loadOffers = () => {
+      const data = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
+      setOffers(data);
+    };
+    loadOffers();
+    window.addEventListener('storage', loadOffers);
+    return () => window.removeEventListener('storage', loadOffers);
+  }, []);
  const [activeTab, setActiveTab] = useState<Tab>("upcoming");
  const [pastFilter, setPastFilter] = useState("All past jobs");
 
- const upcomingJobs = jobs.filter(job => job.status === 'pending' || job.status === 'booked');
+ const upcomingBooked = jobs.filter(job => job.status === 'booked');
+  const currentInterpreterId = 'terp-1'; // Mocked current interpreter id
+  const upcomingOffers = offers.filter(o => o.status === 'pending' && (!o.interpreterId || o.interpreterId === currentInterpreterId));
+  const upcomingJobs = [...upcomingOffers, ...upcomingBooked];
  const pastJobs = jobs.filter(job => job.status === 'declined' || job.status === 'released');
  
  const upcomingCount = upcomingJobs.length;
@@ -72,15 +94,17 @@ export default function InterpreterJobsPage() {
  <h2 className="text-xl font-semibold text-[var(--ink)] mt-8 mb-4">Upcoming</h2>
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  {upcomingJobs.map((job) => {
- const locationParts = job.location.split('·');
- const locPrimary = locationParts[0]?.trim();
- const locSecondary = locationParts[1]?.trim();
- 
- return (
+  const isOffer = job.status === 'pending';
+  const locationText = isOffer ? job.agencyName : job.location;
+  const locPrimary = locationText?.split('·')[0]?.trim() || locationText;
+  const locSecondary = locationText?.split('·')[1]?.trim();
+  const dateText = isOffer ? new Date(job.startsAt).toLocaleString() : job.dateString;
+  
+  return (
  <Link key={job.id} href={`/jobs/${job.id}`} className="block bg-white rounded-2xl border border-gray-200 p-6 border border-gray-200 hover: transition-shadow">
  <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 mb-2">
  <div className="text-[11px] font-bold tracking-wider text-[#A0522D] uppercase mt-1">
- {job.dateString}
+ {dateText}
  </div>
  <div className="flex gap-2">
  {job.status === 'pending' && (

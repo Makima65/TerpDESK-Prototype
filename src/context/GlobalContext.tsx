@@ -101,12 +101,25 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
       const storedConsents = localStorage.getItem('terpdesk_website_profile_consents');
       if (storedConsents) setWebsiteProfileConsent(JSON.parse(storedConsents));
 
-      const storedNotifications = localStorage.getItem('terpdesk_notifications');
-      if (storedNotifications) setNotifications(JSON.parse(storedNotifications));
+      const loadNotifications = () => {
+        const storedNotifications = localStorage.getItem('terpdesk_notifications');
+        if (storedNotifications) setNotifications(JSON.parse(storedNotifications));
+      };
+      loadNotifications();
+
+      const handleStorage = (e: StorageEvent) => {
+        if (e.key === 'terpdesk_notifications') {
+          loadNotifications();
+        }
+      };
+      window.addEventListener('storage', handleStorage);
+      
+      setIsLoaded(true);
+      return () => window.removeEventListener('storage', handleStorage);
     } catch (e) {
       console.error(e);
+      setIsLoaded(true);
     }
-    setIsLoaded(true);
   }, []);
 
   const save = (key: string, data: any) => {
@@ -138,7 +151,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
   const requestToJoinAgency = (inputCode: string) => {
     const cleanedCode = inputCode.replace(/\s+/g, '').toLowerCase();
     const agency = agencies.find(a => a.join_code.replace(/\s+/g, '').toLowerCase() === cleanedCode);
-    
+
     if (!agency) {
       return { error: 'Invalid join code.' };
     }
@@ -170,7 +183,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     const updated = [...membership_requests, newRequest];
     setMembershipRequests(updated);
     save('terpdesk_membership_requests', updated);
-    
+
     sendNotification({
       recipient_id: agency.id,
       agency_id: agency.id,

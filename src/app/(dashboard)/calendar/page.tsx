@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import React, { useState } from "react";
 import { useRequests } from "@/context/RequestsContext";
 import Link from "next/link";
@@ -68,7 +69,7 @@ export default function CalendarPage() {
  );
 
  return (
- <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
+ <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
  {/* Header */}
  <div className="space-y-2">
  <h1 className="text-[28px] font-semibold tracking-tight text-[var(--ink)]">Agency calendar</h1>
@@ -97,17 +98,27 @@ export default function CalendarPage() {
  </div>
 
  {/* View Toggle */}
- <div className="bg-[#F4F3EF] rounded-full p-1 flex mt-4 max-w-md">
- {(['month', 'week', 'day'] as const).map((v) => (
- <button 
- key={v}
- onClick={() => setView(v)}
- className={`flex-1 text-center py-2 text-sm rounded-full transition-all ${view === v ? 'bg-white text-[var(--ink)] font-medium' : 'text-[var(--sage)] hover:text-gray-700'}`}
- >
- {v.charAt(0).toUpperCase() + v.slice(1)}
- </button>
- ))}
- </div>
+  <div className="rounded-full p-1 flex mt-4 max-w-md relative z-10">
+  {(['month', 'week', 'day'] as const).map((v) => (
+  <button 
+  key={v}
+  onClick={() => setView(v)}
+  className={`relative flex-1 text-center py-2 text-sm rounded-full outline-none transition-colors duration-200 ${view === v ? 'text-white font-medium' : 'text-[var(--sage)] hover:text-[var(--ink)]'}`}
+  >
+  {view === v && (
+    <motion.div
+      layoutId="calendarTogglePill"
+      className="absolute inset-0 bg-[#0B3B32] rounded-full"
+      initial={false}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+    />
+  )}
+  <span className="relative z-10">
+    {v.charAt(0).toUpperCase() + v.slice(1)}
+  </span>
+  </button>
+  ))}
+  </div>
 
  {/* Views */}
  {view === 'month' && (
@@ -222,6 +233,6 @@ export default function CalendarPage() {
  </div>
  );
  })()}
- </div>
+ </motion.div>
  );
 }

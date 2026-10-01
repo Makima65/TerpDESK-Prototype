@@ -7,11 +7,48 @@ import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
 import { motion } from "framer-motion";
 
 export default function InterpreterHomePage() {
- const { jobs } = useInterpreterJobs();
+  const { jobs } = useInterpreterJobs();
+  const [offers, setOffers] = React.useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const item = window.localStorage.getItem('terpdesk_offers');
+      return item ? JSON.parse(item) : [];
+    } catch (error) {
+      return [];
+    }
+  });
+
+  React.useEffect(() => {
+    const loadOffers = () => {
+      const data = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
+      setOffers(data);
+    };
+    loadOffers();
+    window.addEventListener('storage', loadOffers);
+    return () => window.removeEventListener('storage', loadOffers);
+  }, []);
+
+  const handleAcceptOffer = (offer: any) => {
+    const updatedOffers = offers.map(o => o.id === offer.id ? { ...o, status: 'accepted' } : o);
+    setOffers(updatedOffers);
+    localStorage.setItem('terpdesk_offers', JSON.stringify(updatedOffers));
+    
+    const acceptedAppointments = JSON.parse(localStorage.getItem('terpdesk_accepted_appointments') || '[]');
+    acceptedAppointments.push({
+      id: offer.id,
+      title: offer.title,
+      startsAt: offer.startsAt,
+      endsAt: offer.endsAt,
+      agencyName: offer.agencyName
+    });
+    localStorage.setItem('terpdesk_accepted_appointments', JSON.stringify(acceptedAppointments));
+  };
 
  const visibleAppointments = jobs.filter((job) => job.status !== "declined" && job.status !== "released").length;
  const upcomingBookings = jobs.filter((job) => job.status === "booked").length;
- const pendingOffers = jobs.filter((job) => job.status === "pending").length;
+ const currentInterpreterId = 'terp-1'; // Mocked current interpreter id
+  const pendingOffersList = offers.filter(o => o.status === 'pending' && (!o.interpreterId || o.interpreterId === currentInterpreterId));
+  const pendingOffers = pendingOffersList.length;
  const hoursToSubmit = jobs.filter((job) => job.status === "booked" && job.serviceRecordState === "not_started").length;
 
  return (
@@ -105,32 +142,38 @@ export default function InterpreterHomePage() {
  </p>
  ) : (
  <div className="space-y-4">
- {jobs
- .filter((job) => job.status === "pending")
- .map((job) => (
- <div
- key={job.id}
- className="bg-[var(--canvas)] rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-gray-200/50"
- >
- <div className="flex items-start gap-3">
- <div className="w-2 h-2 rounded-full bg-[#9B1C1C] mt-2 shrink-0" />
- <div>
- <h3 className="text-[15px] font-medium text-[var(--ink)] mb-1">
- Offer received — {job.title}
- </h3>
- <p className="text-[13px] text-[var(--sage)]">
- Expires Fri, Oct 2 · 12:00 AM GMT+8. Pending offers do not reserve time.
- </p>
- </div>
- </div>
- <Link
- href={`/jobs/${job.id}`}
- className="text-[13px] font-medium text-gray-700 hover:text-[var(--ink)] bg-white border border-gray-200 rounded-full px-4 py-2 shrink-0 md:w-auto w-full text-center transition-colors "
- >
- Review offer
- </Link>
- </div>
- ))}
+ {pendingOffersList.map((job) => (
+  <div
+    key={job.id}
+    className="bg-[var(--canvas)] rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-gray-200/50"
+  >
+    <div className="flex items-start gap-3">
+    <div className="w-2 h-2 rounded-full bg-[#9B1C1C] mt-2 shrink-0" />
+    <div>
+    <h3 className="text-[15px] font-medium text-[var(--ink)] mb-1">
+    Offer received — {job.title}
+    </h3>
+    <p className="text-[13px] text-[var(--sage)]">
+    Expires {new Date(job.endsAt || new Date()).toLocaleDateString()} · Pending offers do not reserve time.
+    </p>
+    </div>
+    </div>
+    <div className="flex gap-2 shrink-0 md:w-auto w-full">
+      <Link
+        href={`/jobs/${job.id}`}
+        className="text-[13px] font-medium text-gray-700 hover:text-[var(--ink)] bg-white border border-gray-200 rounded-full px-4 py-2 text-center transition-colors flex-1 md:flex-none"
+      >
+        Review
+      </Link>
+      <button
+        onClick={() => handleAcceptOffer(job)}
+        className="text-[13px] font-medium text-white bg-[var(--forest)] hover:bg-[#145347] rounded-full px-4 py-2 text-center transition-colors flex-1 md:flex-none cursor-pointer"
+      >
+        Accept
+      </button>
+    </div>
+  </div>
+  ))}
  </div>
  )}
  </div>

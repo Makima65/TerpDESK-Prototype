@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   alt="terpDESK Logo"
                   width={32}
                   height={32}
-                  className="w-8 h-8 rounded-lg object-contain"
+                  className="w-8 h-8 rounded-full object-contain"
                   priority
                 />
                 <span className="text-white font-semibold text-[22px]">terpDESK</span>

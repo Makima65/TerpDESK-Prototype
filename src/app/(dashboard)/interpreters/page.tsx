@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, AnimatePresence } from "framer-motion";
 import React, { useState } from "react";
 import { useGlobalState } from "@/context/GlobalContext";
 
@@ -32,11 +33,11 @@ export default function InterpretersPage() {
   const rosterInterpreters = activeMemberships.map(m => getMockInterpreterDetails(m.user_id)).filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // Join Requests Tab
-  const pendingRequests = membership_requests.filter(r => r.agency_id === agencyId && r.state === 'pending');
-  const answeredRequests = membership_requests.filter(r => r.agency_id === agencyId && r.state !== 'pending');
+  const pendingRequests = membership_requests.filter(r => r.agency_id === agencyId && r.state === 'pending').filter(r => getMockInterpreterDetails(r.interpreter_id).name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const answeredRequests = membership_requests.filter(r => r.agency_id === agencyId && r.state !== 'pending').filter(r => getMockInterpreterDetails(r.interpreter_id).name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // Website Profiles Tab
-  const websiteProfiles = website_profile_consent.filter(c => c.agency_id === agencyId && c.allowed);
+  const websiteProfiles = website_profile_consent.filter(c => c.agency_id === agencyId && c.allowed).filter(c => getMockInterpreterDetails(c.interpreter_id).name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const getBadgeClass = (badge: string) => {
     if (badge.includes("Active") || badge === "approved" || badge === "Approved for the website") {
@@ -49,7 +50,7 @@ export default function InterpretersPage() {
   };
 
   return (
-    <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
+    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
       <div className="space-y-2 mb-6">
         <h1 className="text-[28px] font-semibold tracking-tight text-[var(--ink)]">Interpreters</h1>
         <p className="text-[15px] text-[var(--sage)]">
@@ -90,25 +91,27 @@ export default function InterpretersPage() {
         </button>
       </div>
 
-      {activeTab === 'roster' && (
-        <div className="space-y-6">
-          <div className="flex flex-col">
-            <label className="block text-[13px] text-[var(--sage)] mb-1.5 ml-1">Search by name</label>
-            <input
-              type="text"
-              placeholder="Start typing a name"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#F4F3EF] border-none rounded-full px-5 py-3 text-sm text-gray-800 focus:ring-2 focus:ring-[#0B3B32] outline-none transition-shadow"
-            />
-          </div>
+      <div className="flex flex-col mb-6">
+        <label className="block text-[13px] text-[var(--sage)] mb-1.5 ml-1">Search by name</label>
+        <input
+          type="text"
+          placeholder="Start typing a name"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-[#F4F3EF] border-none rounded-full px-5 py-3 text-sm text-gray-800 focus:ring-2 focus:ring-[#0B3B32] outline-none transition-shadow"
+        />
+      </div>
 
-          <div className="space-y-4">
-            {rosterInterpreters.length === 0 ? (
+      <AnimatePresence mode="wait">
+        {activeTab === 'roster' && (
+          <motion.div key="roster" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }} className="space-y-6">
+            <ul className="space-y-4">
+              <AnimatePresence>
+              {rosterInterpreters.length === 0 ? (
               <p className="text-gray-600 pl-2">No interpreters found.</p>
             ) : (
               rosterInterpreters.map((interpreter, idx) => (
-                <div key={idx} className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:transition-shadow">
+                <motion.li layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={interpreter.name + idx} className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:transition-shadow list-none">
                   <div className="flex items-start sm:items-center gap-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0 ${interpreter.color || 'bg-gray-300'}`}>
                       {interpreter.initials}
@@ -128,25 +131,27 @@ export default function InterpretersPage() {
                   <button className="text-sm text-[var(--sage)] font-medium hover:text-[var(--ink)] transition-colors sm:pt-1 self-start sm:self-auto">
                     Manage access
                   </button>
-                </div>
+                </motion.li>
               ))
             )}
-          </div>
-        </div>
+            </AnimatePresence>
+          </ul>
+        </motion.div>
       )}
 
       {activeTab === 'requests' && (
-        <div className="space-y-6">
+        <motion.div key="requests" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }} className="space-y-6">
           {pendingRequests.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-8">
               <p className="text-gray-600">No one is waiting for a decision.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {pendingRequests.map((req, idx) => {
+            <ul className="space-y-4">
+              <AnimatePresence>
+                {pendingRequests.map((req, idx) => {
                 const details = getMockInterpreterDetails(req.interpreter_id);
                 return (
-                  <div key={req.id} className="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col sm:flex-row sm:items-start justify-between gap-6 hover:shadow-sm transition-shadow">
+                  <motion.li layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={req.id} className="bg-white rounded-2xl border border-gray-200 p-8 flex flex-col sm:flex-row sm:items-start justify-between gap-6 hover:shadow-sm transition-shadow list-none">
                     <div className="flex items-start gap-4">
                       <div className="w-[52px] h-[52px] rounded-full flex items-center justify-center text-white font-semibold text-[17px] shrink-0 bg-[#0B3B32]">
                         {details.initials}
@@ -181,10 +186,11 @@ export default function InterpretersPage() {
                         Decline
                       </button>
                     </div>
-                  </div>
+                  </motion.li>
                 );
               })}
-            </div>
+              </AnimatePresence>
+            </ul>
           )}
 
           <div className="bg-white rounded-2xl border border-gray-200 p-8">
@@ -192,26 +198,28 @@ export default function InterpretersPage() {
             {answeredRequests.length === 0 ? (
               <p className="text-gray-600">No answered requests yet.</p>
             ) : (
-              <div className="flex flex-col">
-                {answeredRequests.map((req, idx) => {
+              <ul className="flex flex-col">
+                <AnimatePresence>
+                  {answeredRequests.map((req, idx) => {
                   const details = getMockInterpreterDetails(req.interpreter_id);
                   return (
-                    <div key={req.id} className={`flex items-center gap-4 py-4 ${idx !== answeredRequests.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                    <motion.li layout initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={req.id} className={`flex items-center gap-4 py-4 ${idx !== answeredRequests.length - 1 ? 'border-b border-gray-200' : ''} list-none`}>
                       <span className="text-[15px] font-medium text-[var(--ink)] min-w-[150px]">{details.name}</span>
                       <span className={`px-3 py-1 rounded-full text-[11px] font-medium ${getBadgeClass(req.state)} capitalize`}>
                         {req.state}
                       </span>
-                    </div>
+                    </motion.li>
                   );
                 })}
-              </div>
+                </AnimatePresence>
+              </ul>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {activeTab === 'website' && (
-        <div className="space-y-6">
+        <motion.div key="website" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }} className="space-y-6">
           <div className="bg-white rounded-2xl border border-gray-200 p-8">
             <h2 className="text-lg font-semibold text-[var(--ink)] mb-4">Website profiles</h2>
             <p className="text-[14px] text-gray-600 leading-relaxed mb-4">
@@ -225,10 +233,12 @@ export default function InterpretersPage() {
           {websiteProfiles.length === 0 ? (
             <p className="text-gray-600 pl-2">No website profiles found.</p>
           ) : (
-            websiteProfiles.map((profile, idx) => {
+            <ul className="space-y-4">
+              <AnimatePresence>
+                {websiteProfiles.map((profile, idx) => {
               const details = getMockInterpreterDetails(profile.interpreter_id);
               return (
-                <div key={idx} className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-6 hover:transition-shadow">
+                <motion.li layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} key={idx} className="bg-white rounded-2xl border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-6 hover:transition-shadow list-none">
                   <div className="flex items-start gap-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg shrink-0 ${details.color || 'bg-gray-300'}`}>
                       {details.initials}
@@ -255,12 +265,15 @@ export default function InterpretersPage() {
                       Decline
                     </button>
                   </div>
-                </div>
+                </motion.li>
               );
-            })
+            })}
+            </AnimatePresence>
+          </ul>
           )}
-        </div>
+        </motion.div>
       )}
-    </div>
+      </AnimatePresence>
+    </motion.div>
   );
 }

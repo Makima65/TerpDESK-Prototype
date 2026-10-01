@@ -1,6 +1,10 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 export default function WebsiteRequestsPage() {
  return (
- <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
+ <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
  {/* Top Banner */}
  {/* Header Section */}
  <div className="space-y-2 mb-8">
@@ -20,6 +24,6 @@ export default function WebsiteRequestsPage() {
  New requests from the gated ASL Professionals site will appear here.
  </p>
  </div>
- </div>
+ </motion.div>
  );
 }

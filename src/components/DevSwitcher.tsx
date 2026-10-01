@@ -1,12 +1,45 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useGlobalState, DevUser } from "@/context/GlobalContext";
 
 export function DevSwitcher() {
   const { currentUser, setCurrentUser } = useGlobalState();
   const router = useRouter();
+
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const startPos = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Ignore if user is clicking on a select element
+    if ((e.target as HTMLElement).tagName.toLowerCase() === 'select') {
+      return;
+    }
+    
+    setIsDragging(true);
+    startPos.current = {
+      x: e.clientX - offset.x,
+      y: e.clientY - offset.y,
+    };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    
+    setOffset({
+      x: e.clientX - startPos.current.x,
+      y: e.clientY - startPos.current.y,
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    setIsDragging(false);
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  };
 
   const handleSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -31,7 +64,17 @@ export function DevSwitcher() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 z-[9999] bg-white border-2 border-orange-500 rounded-lg p-3 shadow-2xl flex flex-col gap-2 min-w-[200px]">
+    <div 
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      style={{
+        transform: `translate3d(${offset.x}px, ${offset.y}px, 0)`,
+        touchAction: isDragging ? 'none' : 'auto'
+      }}
+      className={`fixed bottom-4 left-4 z-[9999] bg-white border-2 border-orange-500 rounded-lg p-3 shadow-2xl flex flex-col gap-2 min-w-[200px] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+    >
       <div className="flex flex-col gap-0.5 border-b border-gray-100 pb-2">
         <div className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Dev Toggle</div>
         <div className="text-xs text-gray-500 font-medium">Role: <span className="text-gray-800">{currentUser.role}</span></div>

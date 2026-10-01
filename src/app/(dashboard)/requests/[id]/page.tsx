@@ -151,47 +151,57 @@ export default function AssignmentDetailPage() {
  };
 
  const handleCreateOffer = () => {
- if (!recipient || !expiryDate || !expiryTime) {
- setErrorMessage('Please select an interpreter and set a valid future expiry date/time before the appointment starts.');
- return;
- }
- 
- const expiry = new Date(`${expiryDate}T${expiryTime}`);
- if (expiry <= new Date()) {
- setErrorMessage('Expiry must be in the future and before appointment start.');
- return;
- }
+    if (!recipient || !expiryDate || !expiryTime) {
+      setErrorMessage('Please select an interpreter and set a valid future expiry date/time before the appointment starts.');
+      return;
+    }
+    
+    const expiry = new Date(`${expiryDate}T${expiryTime}`);
+    if (expiry <= new Date()) {
+      setErrorMessage('Expiry must be in the future and before appointment start.');
+      return;
+    }
 
- const selectedName = activeRoster.find(i => i.id === recipient)?.name || 'Unknown Interpreter';
- const newOffer = { interpreterName: selectedName, date: expiryDate, time: expiryTime };
- setPendingOffer(newOffer);
- setErrorMessage('');
+    const selectedName = activeRoster.find(i => i.id === recipient)?.name || 'Unknown Interpreter';
+    const newOffer = { interpreterName: selectedName, date: expiryDate, time: expiryTime };
+    setPendingOffer(newOffer);
+    setErrorMessage('');
 
- localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ pendingOffer: newOffer, previousOffers }));
+    localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ pendingOffer: newOffer, previousOffers }));
 
- if (selectedName.includes('Dale')) {
- const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
- const jobIndex = storedJobs.findIndex((job: any) => String(job.id) === String(id));
- 
- const payload = {
- ...(foundRequest || {}),
- id,
- status: 'pending',
- location: getPayloadLocation(),
- serviceRecordState: 'not_started'
- };
+    const storedOffers = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
+    const newOfferObj = {
+      id: id,
+      title: foundRequest?.title || 'Unknown Job',
+      startsAt: foundRequest?.timestamp ? new Date(foundRequest.timestamp).toISOString() : new Date().toISOString(),
+      endsAt: foundRequest?.timestamp ? new Date(foundRequest.timestamp + 3600000).toISOString() : new Date().toISOString(),
+      agencyName: 'QA Fixture Agency',
+      status: 'pending',
+      interpreterId: recipient
+    };
+    const offerIndex = storedOffers.findIndex((o: any) => o.id === id);
+    if (offerIndex > -1) {
+      storedOffers[offerIndex] = { ...storedOffers[offerIndex], ...newOfferObj };
+    } else {
+      storedOffers.push(newOfferObj);
+    }
+    localStorage.setItem('terpdesk_offers', JSON.stringify(storedOffers));
 
- if (jobIndex > -1) {
- storedJobs[jobIndex] = { ...storedJobs[jobIndex], ...payload };
- } else {
- storedJobs.push(payload);
- }
- 
- localStorage.setItem('terpdesk_interpreter_jobs', JSON.stringify(storedJobs));
- }
- 
- updateRequest(id, { status: 'Offer awaiting response' });
- };
+    const notifications = JSON.parse(localStorage.getItem('terpdesk_notifications') || '[]');
+    notifications.push({
+      id: Date.now().toString(),
+      type: 'offer_received',
+      message: `New offer received from ${newOfferObj.agencyName}`,
+      read: false,
+      interpreterId: recipient
+    });
+    localStorage.setItem('terpdesk_notifications', JSON.stringify(notifications));
+    
+    // Dispatch storage event manually for same-window updates if needed, though usually window storage event is cross-tab only
+    window.dispatchEvent(new Event('storage'));
+    
+    updateRequest(id, { status: 'Offer awaiting response' });
+  };
 
  if (!foundRequest) {
  return (

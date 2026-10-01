@@ -1,6 +1,10 @@
+"use client";
+
+import { motion } from "framer-motion";
+
 export default function BillingPage() {
  return (
- <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
+ <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
  {/* Top Banner */}
  {/* Deferred Workflow Card */}
  <div className="bg-white rounded-2xl border border-gray-200 p-6 border border-gray-200 mt-6">
@@ -9,6 +13,6 @@ export default function BillingPage() {
  This connected workspace supports appointments, offers, acceptance and private busy time. Billing, integrations and other workflows are not connected. The original demo remains available through the standard demo build.
  </p>
  </div>
- </div>
+ </motion.div>
  );
 }

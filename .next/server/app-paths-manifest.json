@@ -1,8 +1,8 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/(interpreter)/agencies/page": "app/(interpreter)/agencies/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
   "/(interpreter)/interpreter-home/page": "app/(interpreter)/interpreter-home/page.js",
-  "/(dashboard)/interpreters/page": "app/(dashboard)/interpreters/page.js",
-  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js"
+  "/(dashboard)/requests/page": "app/(dashboard)/requests/page.js",
+  "/(dashboard)/calendar/page": "app/(dashboard)/calendar/page.js",
+  "/(interpreter)/interpreter-calendar/page": "app/(interpreter)/interpreter-calendar/page.js"
 }

@@ -40,12 +40,12 @@ export default function InterpreterLayout({ children }: { children: React.ReactN
               alt="terpDESK Logo"
               width={32}
               height={32}
-              className="w-8 h-8 rounded-lg object-contain bg-white p-1"
+              className="w-8 h-8 rounded-full object-contain bg-white p-1"
               priority
             />
             <span className="text-white font-semibold text-[22px]">terpDESK</span>
           </div>
-          <span className="text-[13px] text-[#8BA49E]">Your interpreting business. One place.</span>
+          <span className="text-[13px] text-[#8BA49E] whitespace-nowrap tracking-tight">Your interpreting business. One place.</span>
           <span className="mt-5 text-[14px] font-medium text-white">Interpreter workspace</span>
         </div>
 

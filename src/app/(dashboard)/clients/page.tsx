@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import React, { useState, useRef, useEffect } from "react";
 import { useClients } from "@/context/ClientsContext";
 import Link from "next/link";
@@ -122,7 +123,7 @@ export default function ClientsPage() {
  };
 
  return (
- <div className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
+ <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-6 space-y-6 pb-24 antialiased">
  {/* Top Banner */}
  {/* Header & Subtitle */}
  <div className="space-y-2 mb-8">
@@ -236,6 +237,6 @@ export default function ClientsPage() {
  </div>
  ))}
  </div>
- </div>
+ </motion.div>
  );
 }
