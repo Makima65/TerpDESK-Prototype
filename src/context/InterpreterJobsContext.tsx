@@ -10,6 +10,8 @@ export interface Job {
   location: string;
   isVirtual: boolean;
   hasAutoFill?: boolean;
+  startsAt?: string;
+  endsAt?: string;
   serviceRecordState?: 'not_started' | 'submitted' | 'approved';
 }
 
