@@ -9,7 +9,7 @@ type ViewType = 'month' | 'week' | 'day';
 
 interface Rule { weekday: number; startMinute: number; endMinute: number; }
 interface Exception { date: string; available: boolean; startMinute?: number; endMinute?: number; }
-interface Appointment { id: string; startsAt: string; endsAt: string; title: string; agencyName: string; }
+interface Appointment { id: string; start: Date; end: Date; title: string; agencyName: string; }
 interface BusyBlock { id: string; label: string; timeZone: string; isAllDay: boolean; start: string; end: string; }
 
 const timeStringToMinutes = (time: string): number => {
@@ -59,16 +59,26 @@ export default function InterpreterCalendarPage() {
   const [exceptions, setExceptions] = useState<Exception[]>([]);
   const [busyBlocks, setBusyBlocks] = useState<BusyBlock[]>([]);
 
-  const [acceptedAppointments] = useState<Appointment[]>([
-    {
-      id: 'mock-appt-1',
-      startsAt: '2026-09-29T10:00:00Z',
-      endsAt: '2026-09-29T11:00:00Z',
-      title: 'Medical Interpreting',
-      agencyName: 'North Fictional Interpreting'
-    }
-  ]);
+  const [acceptedAppointments, setAcceptedAppointments] = useState<Appointment[]>([]);
   const [conflicts, setConflicts] = useState<Appointment[]>([]);
+
+  // Private Busy Time Handlers
+  const [busyLabel, setBusyLabel] = useState('Busy');
+  const [busyTimeZone, setBusyTimeZone] = useState('Pacific Time — Seattle, Los Angeles');
+  const [busyAllDay, setBusyAllDay] = useState(false);
+  const [busyStartDate, setBusyStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [busyStartTime, setBusyStartTime] = useState('09:00');
+  const [busyEndDate, setBusyEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [busyEndTime, setBusyEndTime] = useState('10:00');
+
+  const handleSlotClick = (day: Date, hour: number) => {
+    const dStr = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    setBusyStartDate(dStr);
+    setBusyEndDate(dStr);
+    setBusyStartTime(`${hour.toString().padStart(2, '0')}:00`);
+    setBusyEndTime(`${(hour + 1).toString().padStart(2, '0')}:00`);
+    document.getElementById('private-busy-time')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     const avail = localStorage.getItem('terpdesk_availability');
@@ -85,6 +95,29 @@ export default function InterpreterCalendarPage() {
         setBusyBlocks(JSON.parse(busy));
       } catch (e) { }
     }
+
+    const loadJobs = () => {
+      const storedJobs = localStorage.getItem('terpdesk_interpreter_jobs');
+      if (storedJobs) {
+        try {
+          const parsedJobs = JSON.parse(storedJobs);
+          const bookedJobs = parsedJobs
+            .filter((j: any) => j.status === 'booked' && !j.id.includes('fictional') && !(j.title || '').includes('Fictional'))
+            .map((j: any) => ({
+              id: j.id,
+              start: new Date(j.startsAt || new Date().toISOString()),
+              end: new Date(j.endsAt || new Date(Date.now() + 3600000).toISOString()),
+              title: j.title || 'Interpreting request',
+              agencyName: j.agencyName || 'QA Fixture Agency'
+            }));
+          setAcceptedAppointments(bookedJobs);
+        } catch (e) { }
+      }
+    };
+
+    loadJobs();
+    window.addEventListener('storage', loadJobs);
+    return () => window.removeEventListener('storage', loadJobs);
   }, []);
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -126,12 +159,12 @@ export default function InterpreterCalendarPage() {
     const newConflicts: Appointment[] = [];
 
     for (const appt of acceptedAppointments) {
-      const apptDateObj = new Date(appt.startsAt);
-      const dateStr = apptDateObj.toISOString().split('T')[0];
+      const apptDateObj = appt.start;
+      const dateStr = apptDateObj.getFullYear() + '-' + String(apptDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(apptDateObj.getDate()).padStart(2, '0');
       const weekday = apptDateObj.getDay();
 
       const startM = apptDateObj.getHours() * 60 + apptDateObj.getMinutes();
-      const endM = new Date(appt.endsAt).getHours() * 60 + new Date(appt.endsAt).getMinutes();
+      const endM = appt.end.getHours() * 60 + appt.end.getMinutes();
 
       const ex = exceptions.find(e => e.date === dateStr);
       if (ex) {
@@ -169,14 +202,7 @@ export default function InterpreterCalendarPage() {
     setConflicts([]);
   };
 
-  // Private Busy Time Handlers
-  const [busyLabel, setBusyLabel] = useState('Busy');
-  const [busyTimeZone, setBusyTimeZone] = useState('Pacific Time — Seattle, Los Angeles');
-  const [busyAllDay, setBusyAllDay] = useState(false);
-  const [busyStartDate, setBusyStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [busyStartTime, setBusyStartTime] = useState('09:00');
-  const [busyEndDate, setBusyEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [busyEndTime, setBusyEndTime] = useState('10:00');
+  // (Busy Time State Moved up)
 
   const saveBusyTime = () => {
     const newBlock: BusyBlock = {
@@ -261,9 +287,9 @@ export default function InterpreterCalendarPage() {
 
       {/* MONTH VIEW */}
       {view === 'month' && (
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden border border-gray-200">
-
-          {/* Header */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-12 w-full overflow-x-auto">
+          <div className="min-w-[700px]">
+            {/* Header */}
           <div className="grid grid-cols-7 border-b border-gray-200">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="text-center py-4 text-[12px] font-semibold text-[var(--ink)]">
@@ -298,13 +324,15 @@ export default function InterpreterCalendarPage() {
                       <div key={colIdx} className="p-2 border-r border-gray-200 text-[12px] font-medium text-[var(--ink)] last:border-r-0 relative overflow-y-auto">
                         {dayNumber}
                         <div className="mt-1 flex flex-col gap-1">
-                          {acceptedAppointments.filter(a => a.startsAt.startsWith(dateStr)).map(appt => {
-                            const startStr = new Date(appt.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                            const endStr = new Date(appt.endsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                          {acceptedAppointments.filter(a => a.start.getFullYear() === year && a.start.getMonth() === month && a.start.getDate() === dayNumber).map(appt => {
+                            const startStr = appt.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                            const endStr = appt.end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                             return (
-                              <div key={appt.id} onClick={() => router.push(`/jobs/${appt.id}`)} className="px-1.5 py-1 bg-blue-50 text-blue-700 rounded-md cursor-pointer transition-opacity hover:opacity-80">
-                                <div className="text-[11px] font-medium truncate leading-tight">{appt.title}</div>
-                                <div className="text-[10px] opacity-80 leading-tight mt-0.5">{startStr} - {endStr}</div>
+                              <div key={appt.id} onClick={() => router.push(`/jobs/${appt.id}`)} className="px-2 py-1.5 bg-[#E8EFEA] text-[#0B3B32] rounded-md cursor-pointer transition-opacity hover:opacity-80 border border-[#D5E3DB]">
+                                <div className="text-[11px] font-semibold truncate leading-tight">{appt.title}</div>
+                                <div className="text-[10px] opacity-90 leading-tight mt-0.5">{startStr}</div>
+                                <div className="text-[10px] opacity-90 leading-tight mt-0.5">Reserved</div>
+                                <div className="text-[10px] opacity-90 leading-tight mt-0.5 truncate">{appt.agencyName}</div>
                               </div>
                             );
                           })}
@@ -326,61 +354,168 @@ export default function InterpreterCalendarPage() {
               ));
             })()}
           </div>
+          </div>
         </div>
       )}
 
-      {/* DAY VIEW */}
-      {view === 'day' && (() => {
-        const y = currentDate.getFullYear();
-        const m = currentDate.getMonth() + 1;
-        const d = currentDate.getDate();
-        const dateStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
+      {/* WEEK VIEW TIME GRID */}
+      {view === 'week' && (() => {
+        const days = [];
+        const firstDayOfWeek = new Date(currentDate);
+        firstDayOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+        for (let i = 0; i < 7; i++) {
+          const day = new Date(firstDayOfWeek);
+          day.setDate(day.getDate() + i);
+          days.push(day);
+        }
 
-        const jobs = acceptedAppointments.filter(a => a.startsAt.startsWith(dateStr));
-        const blocks = busyBlocks.filter(b => b.start.startsWith(dateStr));
+        const hours = Array.from({ length: 24 }).map((_, i) => {
+          if (i === 0) return '12 AM';
+          if (i === 12) return '12 PM';
+          return i < 12 ? `${i} AM` : `${i - 12} PM`;
+        });
 
         return (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[250px] mb-12">
+          <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden mb-12 shadow-sm w-full overflow-x-auto">
+            <div className="min-w-[800px]">
+              {/* Header row */}
+              <div className="grid grid-cols-[60px_1fr] border-b border-gray-200">
+              <div className="border-r border-gray-100 bg-[#FAFAFA]"></div>
+              <div className="grid grid-cols-7">
+                {days.map((day, i) => (
+                  <div key={i} className="text-center py-4 border-r border-gray-100 last:border-r-0">
+                    <div className="text-[13px] font-semibold text-[var(--ink)]">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.getDay()]}</div>
+                    <div className="text-[13px] text-gray-500 mt-0.5">{day.getMonth() + 1}/{day.getDate()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable grid area */}
+            <div className="relative h-[800px] overflow-y-auto">
+              <div className="grid grid-cols-[60px_1fr] absolute min-w-full">
+                {/* Time Axis */}
+                <div className="bg-[#FAFAFA] border-r border-gray-100 flex flex-col relative z-20">
+                  {hours.map((h, i) => (
+                    <div key={i} className="h-[60px] border-b border-gray-100 relative">
+                      <span className={`absolute right-2 text-[10px] text-gray-500 font-medium ${i === 0 ? 'top-1' : '-top-[9px]'}`}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day Columns */}
+                <div className="grid grid-cols-7 relative">
+                  {/* Background grid lines */}
+                  <div className="absolute inset-0 pointer-events-none flex flex-col">
+                    {hours.map((_, i) => (
+                      <div key={i} className="h-[60px] border-b border-gray-100 w-full" />
+                    ))}
+                  </div>
+
+                  {days.map((day, dIdx) => {
+                    const jobs = acceptedAppointments.filter(a => a.start.getFullYear() === day.getFullYear() && a.start.getMonth() === day.getMonth() && a.start.getDate() === day.getDate());
+                    const blocks = busyBlocks.filter(b => {
+                      const d = new Date(b.start);
+                      return d.getFullYear() === day.getFullYear() && d.getMonth() === day.getMonth() && d.getDate() === day.getDate();
+                    });
+
+                    return (
+                      <div key={dIdx} className="border-r border-gray-100 last:border-r-0 relative group">
+                        {/* Interactive Click Grid */}
+                        <div className="absolute inset-0 flex flex-col cursor-crosshair">
+                          {hours.map((_, hIdx) => (
+                            <div 
+                              key={hIdx} 
+                              className="h-[60px] hover:bg-gray-50/50 transition-colors z-0"
+                              onClick={() => handleSlotClick(day, hIdx)}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Plotted Events */}
+                        {jobs.map(appt => {
+                          const startM = appt.start.getHours() * 60 + appt.start.getMinutes();
+                          const endM = appt.end.getHours() * 60 + appt.end.getMinutes();
+                          const top = startM; // 1px = 1min
+                          const height = Math.max(endM - startM, 30);
+                          const startStr = appt.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+                          return (
+                            <div 
+                              key={appt.id} 
+                              onClick={(e) => { e.stopPropagation(); router.push(`/jobs/${appt.id}`); }}
+                              className="absolute left-1 right-1 bg-[#E8EFEA] border border-[#D5E3DB] rounded-lg p-2 overflow-hidden shadow-sm z-10 cursor-pointer hover:shadow-md transition-shadow"
+                              style={{ top: `${top}px`, height: `${height}px` }}
+                            >
+                              <div className="text-[11px] font-semibold text-[#0B3B32] truncate">{appt.title}</div>
+                              <div className="text-[10px] text-[#14332D] mt-0.5">{startStr}</div>
+                              <div className="text-[10px] text-[#14332D] opacity-90">Reserved</div>
+                              <div className="text-[10px] text-[#14332D] opacity-80 mt-1 truncate">{appt.agencyName}</div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Busy Blocks */}
+                        {blocks.map(block => {
+                          const s = new Date(block.start);
+                          const e = new Date(block.end);
+                          const startM = s.getHours() * 60 + s.getMinutes();
+                          const endM = e.getHours() * 60 + e.getMinutes();
+                          const top = startM;
+                          const height = Math.max(endM - startM, 30);
+                          const startStr = s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                          
+                          return (
+                            <div 
+                              key={block.id} 
+                              className="absolute left-1 right-1 bg-gray-100 border border-gray-200 rounded-lg p-2 overflow-hidden z-10"
+                              style={{ top: `${top}px`, height: `${height}px` }}
+                            >
+                              <div className="text-[11px] font-semibold text-gray-700 truncate">{block.label || 'Busy'}</div>
+                              <div className="text-[10px] text-gray-500 mt-0.5">{startStr}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* DAY VIEW (AGENDA STYLE) */}
+      {view === 'day' && (() => {
+        const jobs = acceptedAppointments.filter(a => a.start.getFullYear() === currentDate.getFullYear() && a.start.getMonth() === currentDate.getMonth() && a.start.getDate() === currentDate.getDate());
+
+        return (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-12 shadow-sm">
             <h2 className="text-[18px] font-semibold text-[var(--ink)] mb-4">
               {formatDayViewSubtitle(currentDate)}
             </h2>
 
-            {(jobs.length === 0 && blocks.length === 0) ? (
+            {jobs.length === 0 ? (
               <p className="text-[14px] text-[var(--sage)] mb-6">
                 Nothing scheduled for this day.
               </p>
             ) : (
               <div className="flex flex-col gap-2 mb-6">
                 {jobs.map(appt => {
-                  const startStr = new Date(appt.startsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  const endStr = new Date(appt.endsAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                  const startStr = appt.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                   return (
-                    <div key={appt.id} onClick={() => router.push(`/jobs/${appt.id}`)} className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg cursor-pointer transition-opacity hover:opacity-80 flex flex-col sm:flex-row sm:items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-[13px]">{appt.title}</div>
-                        <div className="text-[11px] opacity-80 mt-0.5">{startStr} - {endStr}</div>
-                      </div>
-                      <div className="text-[12px] opacity-80 mt-1 sm:mt-0">{appt.agencyName}</div>
-                    </div>
-                  );
-                })}
-                {blocks.map(block => {
-                  const startStr = new Date(block.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  const endStr = new Date(block.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  return (
-                    <div key={block.id} className="px-3 py-2 bg-gray-50 text-gray-700 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-[13px]">{block.label || 'Busy'}</div>
-                        <div className="text-[11px] opacity-80 mt-0.5">{startStr} - {endStr}</div>
-                      </div>
-                      <div className="text-[12px] opacity-80 mt-1 sm:mt-0">{block.timeZone}</div>
+                    <div key={appt.id} onClick={() => router.push(`/jobs/${appt.id}`)} className="px-4 py-3 bg-[#E8EFEA] text-[#0B3B32] border border-[#D5E3DB] rounded-xl cursor-pointer hover:opacity-90 transition-opacity w-full">
+                      <div className="text-[13px] font-semibold mb-0.5">{appt.title}</div>
+                      <div className="text-[12px] opacity-90">{startStr} · Reserved</div>
                     </div>
                   );
                 })}
               </div>
             )}
 
-            <button onClick={() => document.getElementById('private-busy-time')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-[13px] font-medium hover:bg-gray-50 transition-colors ">
+            <button onClick={() => document.getElementById('private-busy-time')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-[13px] font-medium hover:bg-gray-50 transition-colors mt-2">
               Block time on this day
             </button>
           </div>
