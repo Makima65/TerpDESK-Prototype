@@ -159,7 +159,7 @@ export default function DashboardPage() {
  <div className="rounded-2xl border border-gray-200 bg-white p-8 border border-neutral-100/50">
  <div className="flex items-center justify-between mb-6">
  <h2 className="text-[17px] font-semibold text-[var(--ink)]">Upcoming bookings</h2>
- <button className="text-sm font-medium text-slate-600 hover:text-[var(--ink)] transition-colors">Open calendar →</button>
+ <Link href="/calendar" className="text-sm font-medium text-slate-600 hover:text-[var(--ink)] transition-colors">Open calendar →</Link>
  </div>
 
  <div className="space-y-6">

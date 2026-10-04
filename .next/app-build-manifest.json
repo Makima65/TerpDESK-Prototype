@@ -41,10 +41,50 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(interpreter)/interpreter-calendar/page.js"
     ],
-    "/_not-found/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/page.js"
+    ],
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/(dashboard)/requests/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/requests/[id]/page.js"
+    ],
+    "/(dashboard)/hours-review/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/hours-review/page.js"
+    ],
+    "/(interpreter)/jobs/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(interpreter)/jobs/page.js"
+    ],
+    "/(interpreter)/jobs/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(interpreter)/jobs/[id]/page.js"
+    ],
+    "/(dashboard)/requests/new/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/requests/new/page.js"
+    ],
+    "/(interpreter)/agencies/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(interpreter)/agencies/page.js"
+    ],
+    "/(dashboard)/interpreters/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/interpreters/page.js"
     ]
   }
 }

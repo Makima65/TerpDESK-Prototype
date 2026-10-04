@@ -173,8 +173,8 @@ export default function AssignmentDetailPage() {
     const newOfferObj = {
       id: id,
       title: foundRequest?.title || 'Unknown Job',
-      startsAt: foundRequest?.timestamp ? new Date(foundRequest.timestamp).toISOString() : new Date().toISOString(),
-      endsAt: foundRequest?.timestamp ? new Date(foundRequest.timestamp + 3600000).toISOString() : new Date().toISOString(),
+      startsAt: foundRequest?.startsAt || (foundRequest?.timestamp ? new Date(foundRequest.timestamp).toISOString() : new Date().toISOString()),
+      endsAt: foundRequest?.endsAt || (foundRequest?.timestamp ? new Date(foundRequest.timestamp + 3600000).toISOString() : new Date().toISOString()),
       agencyName: 'QA Fixture Agency',
       status: 'pending',
       interpreterId: recipient

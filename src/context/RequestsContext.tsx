@@ -22,6 +22,8 @@ export interface RequestItem {
   format?: string;
   pendingOffer?: boolean | string;
   serviceRecordState?: string;
+  startsAt?: string;
+  endsAt?: string;
 }
 
 interface RequestsContextType {

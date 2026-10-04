@@ -21,74 +21,58 @@ interface InterpreterJobsContextType {
   submitHours: (jobId: string) => void;
 }
 
-const mockJobs: Job[] = [
-  {
-    id: "fictional-1",
-    title: "Fictional notification test",
-    dateString: "THU, OCT 15 · 10:54 PM PDT – FRI, OCT 16 · 12:54 AM PDT",
-    status: "pending",
-    location: "Virtual details pending · QA Fixture Agency A (automated tests)",
-    isVirtual: true,
-  },
-  {
-    id: "fictional-2",
-    title: "Fictional notification test",
-    dateString: "SUN, OCT 18 · 10:54 AM – 12:54 PM PDT",
-    status: "pending",
-    location: "Virtual details pending · QA Fixture Agency A (automated tests)",
-    isVirtual: true,
-  },
-  {
-    id: "fictional-3",
-    title: "Fictional notification test",
-    dateString: "TUE, OCT 20 · 10:54 PM PDT – WED, OCT 21 · 12:54 AM PDT",
-    status: "pending",
-    location: "Virtual details pending · QA Fixture Agency A (automated tests)",
-    isVirtual: true,
-  },
-  {
-    id: "fictional-4",
-    title: "Fictional Auto Fill test",
-    dateString: "MON, OCT 26, 2020 · 2:52 PM – 4:52 PM PDT",
-    status: "booked",
-    location: "Virtual details pending · QA Fixture Agency A (automated tests)",
-    isVirtual: true,
-    hasAutoFill: true,
-    serviceRecordState: "not_started",
-  },
-  {
-    id: "fictional-5",
-    title: "Fictional release test",
-    dateString: "FRI, JAN 29 · 3:52 AM – 5:52 AM PST",
-    status: "booked",
-    location: "Virtual details pending · QA Fixture Agency A (automated tests)",
-    isVirtual: true,
-  },
-  {
-    id: "fictional-6",
-    title: "Fictional release test",
-    dateString: "FRI, JAN 29 · 9:52 AM – 11:52 AM PST",
-    status: "booked",
-    location: "Virtual details pending · QA Fixture Agency B (automated tests)",
-    isVirtual: true,
-  },
-];
-
 const InterpreterJobsContext = createContext<InterpreterJobsContextType | undefined>(undefined);
 
 export function InterpreterJobsProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    let localJobs: Job[] = [];
+
+    // 1. Load existing interpreter jobs but aggressively strip the old fictional data
     const savedJobs = localStorage.getItem('terpdesk_interpreter_jobs');
     if (savedJobs) {
       try {
-        setJobs(JSON.parse(savedJobs));
+        const parsed = JSON.parse(savedJobs);
+        localJobs = parsed.filter((j: Job) => 
+          !(j.id && j.id.startsWith('fictional-')) && 
+          !(j.title && j.title.includes('Fictional'))
+        );
       } catch (error) {
         console.error("Failed to parse jobs from local storage", error);
       }
     }
+
+    // 2. Load incoming offers from the Agency and merge them in
+    const savedOffers = localStorage.getItem('terpdesk_offers');
+    if (savedOffers) {
+      try {
+        const offers = JSON.parse(savedOffers);
+        offers.forEach((o: any) => {
+          // Check for poisoned Fictional cache in offers
+          if (o.title && o.title.includes('Fictional')) return;
+
+          // If we don't already have this offer in our jobs state
+          if (!localJobs.find(j => j.id === o.id)) {
+            localJobs.push({
+              id: o.id,
+              title: o.title || "Interpreter Request",
+              dateString: o.startsAt ? new Date(o.startsAt).toLocaleString() : "Date TBD",
+              status: o.status === 'accepted' ? 'booked' : o.status,
+              location: o.agencyName || "Remote",
+              isVirtual: true,
+              startsAt: o.startsAt,
+              endsAt: o.endsAt
+            } as Job);
+          }
+        });
+      } catch (e) {
+        console.error("Failed to parse offers", e);
+      }
+    }
+
+    setJobs(localJobs);
     setIsMounted(true);
   }, []);
 
@@ -102,7 +86,35 @@ export function InterpreterJobsProvider({ children }: { children: ReactNode }) {
     setJobs(prevJobs => prevJobs.map(job => 
       job.id === jobId ? { ...job, status: 'booked' } : job
     ));
+    
+    // Notify the agency side
     localStorage.setItem(`agency_staffing_state_${jobId}`, JSON.stringify({ bookedInterpreter: 'Dale Fictional' }));
+
+    // Update the terpdesk_offers mock database to accepted
+    const savedOffers = localStorage.getItem('terpdesk_offers');
+    if (savedOffers) {
+      try {
+        const offers = JSON.parse(savedOffers);
+        const updatedOffers = offers.map((o: any) => o.id === jobId ? { ...o, status: 'accepted' } : o);
+        localStorage.setItem('terpdesk_offers', JSON.stringify(updatedOffers));
+
+        // Push to accepted appointments for agency view
+        const accepted = JSON.parse(localStorage.getItem('terpdesk_accepted_appointments') || '[]');
+        const offer = offers.find((o: any) => o.id === jobId);
+        if (offer && !accepted.find((a: any) => a.id === jobId)) {
+           accepted.push({
+             id: offer.id,
+             title: offer.title,
+             startsAt: offer.startsAt,
+             endsAt: offer.endsAt,
+             agencyName: offer.agencyName
+           });
+           localStorage.setItem('terpdesk_accepted_appointments', JSON.stringify(accepted));
+        }
+      } catch (e) {}
+    }
+    
+    window.dispatchEvent(new Event('storage')); // Trigger cross-tab
   };
 
   const declineOffer = (jobId: string) => {
@@ -110,6 +122,16 @@ export function InterpreterJobsProvider({ children }: { children: ReactNode }) {
       job.id === jobId ? { ...job, status: 'declined' } : job
     ));
     
+    // Update the terpdesk_offers to declined
+    const savedOffers = localStorage.getItem('terpdesk_offers');
+    if (savedOffers) {
+       try {
+         const offers = JSON.parse(savedOffers);
+         const updatedOffers = offers.map((o: any) => o.id === jobId ? { ...o, status: 'declined' } : o);
+         localStorage.setItem('terpdesk_offers', JSON.stringify(updatedOffers));
+       } catch(e) {}
+    }
+
     // Log the decline to the agency's previous offers array
     const agencyStateString = localStorage.getItem(`agency_staffing_state_${jobId}`);
     if (agencyStateString) {
@@ -125,18 +147,21 @@ export function InterpreterJobsProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem(`agency_staffing_state_${jobId}`);
     }
+    window.dispatchEvent(new Event('storage'));
   };
 
   const releaseJob = (jobId: string) => {
     setJobs(prevJobs => prevJobs.map(job => 
       job.id === jobId ? { ...job, status: 'released' } : job
     ));
+    window.dispatchEvent(new Event('storage'));
   };
 
   const submitHours = (jobId: string) => {
     setJobs(prevJobs => prevJobs.map(job => 
       job.id === jobId ? { ...job, serviceRecordState: 'submitted' } : job
     ));
+    window.dispatchEvent(new Event('storage'));
   };
 
   if (!isMounted) return null;

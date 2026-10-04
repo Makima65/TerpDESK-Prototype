@@ -1,8 +1,9 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
   "/(interpreter)/interpreter-home/page": "app/(interpreter)/interpreter-home/page.js",
-  "/(dashboard)/requests/page": "app/(dashboard)/requests/page.js",
-  "/(dashboard)/calendar/page": "app/(dashboard)/calendar/page.js",
-  "/(interpreter)/interpreter-calendar/page": "app/(interpreter)/interpreter-calendar/page.js"
+  "/(interpreter)/interpreter-calendar/page": "app/(interpreter)/interpreter-calendar/page.js",
+  "/(dashboard)/requests/new/page": "app/(dashboard)/requests/new/page.js",
+  "/(interpreter)/jobs/page": "app/(interpreter)/jobs/page.js",
+  "/(interpreter)/jobs/[id]/page": "app/(interpreter)/jobs/[id]/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/hours-review/page": "app/(dashboard)/hours-review/page.js"
 }

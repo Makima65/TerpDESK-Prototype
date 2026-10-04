@@ -165,6 +165,14 @@ export default function NewRequestPage() {
 
  const handleSave = () => {
  const newId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
+ 
+ let startsAt = new Date().toISOString();
+ let endsAt = new Date(Date.now() + 3600000).toISOString();
+ try {
+   startsAt = new Date(`${formData.startDate}T${formData.startTime}`).toISOString();
+   endsAt = new Date(`${formData.endDate}T${formData.endTime}`).toISOString();
+ } catch (e) {}
+
  const newRequest = {
  id: newId,
  title: formData.appointmentTitle || "Interpreting request",
@@ -173,6 +181,8 @@ export default function NewRequestPage() {
  setting: formData.setting,
  actionRequired: true,
  timestamp: Date.now(),
+ startsAt,
+ endsAt,
  overview: { location: formData.venue || "TBD", reference: newId, status: "Unfilled / draft" },
  details: { setting: formData.setting, purpose: formData.purpose, format: formData.modality, timeZone: formData.timeZone, deafParticipant: formData.deafParticipant, peopleNeeding: formData.peopleNeeding, commPreferences: formData.commPreferences, qualifications: formData.qualifications },
  onsite: { venue: formData.venue, address: formData.address, building: formData.building, parking: formData.parking, entrance: formData.entrance, contact: formData.onsiteContactName, contactMethod: formData.onsiteContactPhone },

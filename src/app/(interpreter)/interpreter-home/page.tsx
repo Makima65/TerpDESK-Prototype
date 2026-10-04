@@ -7,12 +7,14 @@ import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
 import { motion } from "framer-motion";
 
 export default function InterpreterHomePage() {
-  const { jobs } = useInterpreterJobs();
+  const { jobs, acceptJobOffer } = useInterpreterJobs();
   const [offers, setOffers] = React.useState<any[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
       const item = window.localStorage.getItem('terpdesk_offers');
-      return item ? JSON.parse(item) : [];
+      if (!item) return [];
+      const parsed = JSON.parse(item);
+      return parsed.filter((o: any) => !(o.title && o.title.includes('Fictional')));
     } catch (error) {
       return [];
     }
@@ -21,7 +23,7 @@ export default function InterpreterHomePage() {
   React.useEffect(() => {
     const loadOffers = () => {
       const data = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
-      setOffers(data);
+      setOffers(data.filter((o: any) => !(o.title && o.title.includes('Fictional'))));
     };
     loadOffers();
     window.addEventListener('storage', loadOffers);
@@ -29,27 +31,26 @@ export default function InterpreterHomePage() {
   }, []);
 
   const handleAcceptOffer = (offer: any) => {
-    const updatedOffers = offers.map(o => o.id === offer.id ? { ...o, status: 'accepted' } : o);
-    setOffers(updatedOffers);
-    localStorage.setItem('terpdesk_offers', JSON.stringify(updatedOffers));
-    
-    const acceptedAppointments = JSON.parse(localStorage.getItem('terpdesk_accepted_appointments') || '[]');
-    acceptedAppointments.push({
-      id: offer.id,
-      title: offer.title,
-      startsAt: offer.startsAt,
-      endsAt: offer.endsAt,
-      agencyName: offer.agencyName
-    });
-    localStorage.setItem('terpdesk_accepted_appointments', JSON.stringify(acceptedAppointments));
+    // Call the robust context method instead of mutating local arrays directly
+    acceptJobOffer(offer.id);
   };
 
  const visibleAppointments = jobs.filter((job) => job.status !== "declined" && job.status !== "released").length;
- const upcomingBookings = jobs.filter((job) => job.status === "booked").length;
+ const upcomingBookings = jobs.filter((job) => job.status === "booked" && (!job.endsAt || new Date(job.endsAt) > new Date())).length;
  const currentInterpreterId = 'terp-1'; // Mocked current interpreter id
   const pendingOffersList = offers.filter(o => o.status === 'pending' && (!o.interpreterId || o.interpreterId === currentInterpreterId));
   const pendingOffers = pendingOffersList.length;
- const hoursToSubmit = jobs.filter((job) => job.status === "booked" && job.serviceRecordState === "not_started").length;
+ const hoursToSubmit = jobs.filter((job) => job.status === "booked" && job.endsAt && new Date(job.endsAt) <= new Date() && job.serviceRecordState === "not_started").length;
+
+ const formatJobDate = (startStr?: string, endStr?: string) => {
+   if (!startStr) return "Date TBD";
+   const start = new Date(startStr);
+   const end = endStr ? new Date(endStr) : new Date(start.getTime() + 2 * 60 * 60 * 1000);
+   const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+   const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+   const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+   return `${dateStr} · ${timeStart} – ${timeEnd}`;
+ };
 
  return (
  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-4 md:p-8 w-full space-y-8 pb-24 antialiased">
@@ -154,7 +155,7 @@ export default function InterpreterHomePage() {
     Offer received — {job.title}
     </h3>
     <p className="text-[13px] text-[var(--sage)]">
-    Expires {new Date(job.endsAt || new Date()).toLocaleDateString()} · Pending offers do not reserve time.
+    Expires {job.endsAt ? new Date(job.endsAt).toLocaleDateString() : 'Unknown date'} · Pending offers do not reserve time.
     </p>
     </div>
     </div>
@@ -192,7 +193,7 @@ export default function InterpreterHomePage() {
 
  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  {jobs
- .filter((job) => job.status === "booked")
+ .filter((job) => job.status === "booked" && (!job.endsAt || new Date(job.endsAt) > new Date()))
  .map((job) => {
  const locationParts = job.location.split("·");
  const locPrimary = locationParts[0]?.trim();
@@ -206,7 +207,7 @@ export default function InterpreterHomePage() {
  >
  <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 mb-2">
  <div className="text-[11px] font-bold tracking-wider text-[#A0522D] uppercase mt-1">
- {job.dateString}
+ {job.startsAt ? formatJobDate(job.startsAt, job.endsAt) : job.dateString}
  </div>
  <div className="flex gap-2">
  <div className="bg-[#E2EBE5] text-[#1B433C] text-[12px] font-medium px-3 py-1 rounded-full w-max shrink-0">
