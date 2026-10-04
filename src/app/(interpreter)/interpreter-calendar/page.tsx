@@ -620,7 +620,7 @@ export default function InterpreterCalendarPage() {
                 <p className="font-semibold mb-2 text-[14px]">These are still booked. Availability never cancels accepted work — contact the agency if you need a change.</p>
                 <ul className="list-disc pl-5 text-[13px] space-y-1">
                   {conflicts.map(c => {
-                    const startStr = new Date(c.startsAt).toLocaleString();
+                    const startStr = c.start.toLocaleString();
                     return (
                       <li key={c.id}>
                         <span className="font-medium">{c.title}</span> with {c.agencyName} ({startStr})
