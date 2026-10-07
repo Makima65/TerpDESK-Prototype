@@ -24,6 +24,13 @@ export interface RequestItem {
   serviceRecordState?: string;
   startsAt?: string;
   endsAt?: string;
+  state?: 'draft' | 'cancelled' | 'active';
+  slots?: any[];
+  offers?: any[];
+  requiredPositions?: number;
+  acceptedInterpretersCount?: number;
+  positions?: string;
+  data?: any;
 }
 
 interface RequestsContextType {
@@ -32,44 +39,7 @@ interface RequestsContextType {
   updateRequest: (id: string, request: Partial<RequestItem>) => void;
 }
 
-const defaultRequests: RequestItem[] = [
-  {
-    id: "APT-88334D",
-    title: "Testing assignment",
-    dateString: "Expires Fri, Oct 2 · 12:00 AM GMT+8",
-    status: "Awaiting response",
-    setting: "Virtual",
-    actionRequired: true,
-    timestamp: new Date("2026-10-02").getTime(),
-  },
-  {
-    id: "APT-88334E",
-    title: "Medical interpreting request",
-    dateString: "Mon, Sep 21 · 9:12 AM – 10:12 AM PDT",
-    status: "Unfilled / draft",
-    setting: "Medical",
-    actionRequired: true,
-    timestamp: new Date("2026-09-21").getTime(),
-  },
-  {
-    id: "APT-88334F",
-    title: "Workplace interpreting request",
-    dateString: "Mon, Sep 21 · 9:14 AM – 10:14 AM PDT",
-    status: "Unfilled / draft",
-    setting: "Workplace",
-    actionRequired: true,
-    timestamp: new Date("2026-09-21T09:14:00").getTime(),
-  },
-  {
-    id: "APT-88334G",
-    title: "Partially staffed — Testing",
-    dateString: "Thu, Sep 24 · 9:56 AM – 3:56 PM PDT",
-    status: "Partially staffed",
-    setting: "Other",
-    actionRequired: true,
-    timestamp: new Date("2026-09-24T09:56:00").getTime(),
-  }
-];
+const defaultRequests: RequestItem[] = [];
 
 const RequestsContext = createContext<RequestsContextType | undefined>(undefined);
 

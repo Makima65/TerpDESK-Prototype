@@ -2,13 +2,17 @@
 
 import { motion } from "framer-motion";
 import React, { useState } from "react";
-import { useRequests } from "@/context/RequestsContext";
+import { fetchLiveRequests } from "@/app/actions/getRequests";
 import Link from "next/link";
 
 export default function CalendarPage() {
- const { requests } = useRequests();
+ const [requests, setRequests] = useState<any[]>([]);
  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
  const [currentDate, setCurrentDate] = useState(new Date());
+
+ React.useEffect(() => {
+   fetchLiveRequests().then(setRequests).catch(console.error);
+ }, []);
 
  const year = currentDate.getFullYear();
  const month = currentDate.getMonth();
@@ -44,10 +48,19 @@ export default function CalendarPage() {
  setCurrentDate(new Date(year, month + offset, 1));
  };
 
- const isSameDay = (d1: Date | null, timestamp: number) => {
- if (!d1) return false;
- const d2 = new Date(timestamp);
+ const isSameDay = (d1: Date | null, dateString?: string) => {
+ if (!d1 || !dateString) return false;
+ const d2 = new Date(dateString);
  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+ };
+
+ const formatEventTime = (startsAt?: string, endsAt?: string, fallback?: string) => {
+ if (!startsAt) return fallback || "Time not specified";
+ const start = new Date(startsAt);
+ const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + 3600000);
+ const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+ const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+ return `${timeStart} – ${timeEnd}`;
  };
 
  const leftArrow = (
@@ -134,7 +147,7 @@ export default function CalendarPage() {
  </div>
  <div className="grid grid-cols-7 border-t border-l border-gray-200">
  {cells.map((date, idx) => {
- const dayRequests = date ? requests.filter(r => isSameDay(date, r.timestamp)) : [];
+ const dayRequests = date ? requests.filter(r => isSameDay(date, r.startsAt)) : [];
  return (
  <div key={idx} className="min-h-[120px] border-r border-b border-gray-200 p-2 flex flex-col">
  {date && (
@@ -179,7 +192,7 @@ export default function CalendarPage() {
  ))}
  </div>
  {weekDays.map((dayDate, dayIdx) => {
- const dayRequests = requests.filter(r => isSameDay(dayDate, r.timestamp));
+ const dayRequests = requests.filter(r => isSameDay(dayDate, r.startsAt));
  return (
  <div key={dayIdx} className="flex-1 border-r border-gray-200 flex flex-col">
  <div className="h-8 border-b border-gray-200 text-center text-xs font-semibold text-[var(--sage)] uppercase tracking-wider py-1.5 bg-white">
@@ -202,7 +215,7 @@ export default function CalendarPage() {
  )}
 
  {view === 'day' && (() => {
- const dayRequests = requests.filter(r => isSameDay(currentDate, r.timestamp));
+ const dayRequests = requests.filter(r => isSameDay(currentDate, r.startsAt));
  return (
  <div className="bg-white rounded-2xl border border-gray-200 border border-gray-200 p-8 mt-6 min-h-[400px]">
  <h2 className="text-xl font-semibold text-[var(--ink)] mb-6">
@@ -220,7 +233,7 @@ export default function CalendarPage() {
  <div className="flex justify-between items-start">
  <div>
  <h3 className="font-semibold text-[var(--ink)]">{req.title || "Request"}</h3>
- <p className="text-sm text-[var(--sage)] mt-1">{req.dateString || "Time not specified"}</p>
+ <p className="text-sm text-[var(--sage)] mt-1">{formatEventTime(req.startsAt, req.endsAt, req.dateString)}</p>
  </div>
  <span className="bg-[#E5F0EB] text-[#0A3D31] rounded-full px-3 py-1 text-xs font-medium">
  {req.status}

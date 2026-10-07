@@ -1,0 +1,7 @@
+POST http://localhost:3000/api/intake
+Content-Type: application/json
+
+{
+  "subject": "New Interpreting Request",
+  "text": "Hello, we need an interpreter. ODHH approval. SRN: 99887766"
+}

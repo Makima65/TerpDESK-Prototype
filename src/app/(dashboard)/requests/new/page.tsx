@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRequests } from "@/context/RequestsContext";
 import { useClients } from "@/context/ClientsContext";
 import { useRouter, useSearchParams } from "next/navigation";
+import { fromZonedTime } from "date-fns-tz";
+import { createRequest } from "@/app/actions/createRequest";
+import type { RequestData, Program } from "@/db/schema";
 
 function CustomSelect({ options, value, onChange }: { options: string[], value?: string, onChange?: (val: string) => void }) {
  const [isOpen, setIsOpen] = useState(false);
@@ -117,6 +120,16 @@ export default function NewRequestPage() {
  const clientId = searchParams?.get("clientId");
  const targetClient = clientId ? clients.find((c) => String(c.id) === String(clientId)) : null;
 
+ const TIMEZONE_MAP: Record<string, string> = {
+ "Pacific Time — Seattle, Los Angeles": "America/Los_Angeles",
+ "Mountain Time — Denver": "America/Denver",
+ "Arizona (no daylight saving)": "America/Phoenix",
+ "Central Time — Chicago": "America/Chicago",
+ "Eastern Time — New York": "America/New_York",
+ "Alaska Time": "America/Anchorage",
+ "Hawaii Time": "Pacific/Honolulu"
+ };
+
  const [formData, setFormData] = useState({
  client: targetClient ? targetClient.name : "New or one-time requester — no saved client",
  requesterOrgOrContact: "New organization or contact",
@@ -132,10 +145,10 @@ export default function NewRequestPage() {
  setting: "Choose a setting",
  purpose: "",
  timeZone: "Pacific Time — Seattle, Los Angeles",
- startDate: "2026-09-28",
- startTime: "11:41",
- endDate: "2026-09-28",
- endTime: "12:41",
+ startDate: "",
+ startTime: "",
+ endDate: "",
+ endTime: "",
  modality: "In person",
  appointmentTitle: "",
  repeats: false,
@@ -156,44 +169,150 @@ export default function NewRequestPage() {
  poNumber: "",
  prepNotes: "",
  privateNotes: "",
- positions: "One interpreter"
+ positions: "One interpreter",
+ program: "General",
+ odhhSrn: "",
+ odhhAccessCode: "",
+ providerOneNumber: ""
  });
 
+ useEffect(() => {
+ // Initialize dates to 24 hours from current moment, in the default timezone
+ const targetUTC = new Date(Date.now() + 24 * 3600000);
+ const endUTC = new Date(targetUTC.getTime() + 3600000);
+ 
+ try {
+ const ianaTz = TIMEZONE_MAP["Pacific Time — Seattle, Los Angeles"];
+ 
+ const formatLocal = (d: Date, tz: string) => {
+ const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+ const parts = f.formatToParts(d);
+ const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+ return {
+ date: `${p.year}-${p.month}-${p.day}`,
+ time: `${p.hour}:${p.minute}`
+ };
+ };
+ 
+ const startLocal = formatLocal(targetUTC, ianaTz);
+ const endLocal = formatLocal(endUTC, ianaTz);
+
+ setFormData(prev => ({
+ ...prev,
+ startDate: startLocal.date,
+ startTime: startLocal.time,
+ endDate: endLocal.date,
+ endTime: endLocal.time
+ }));
+ } catch (e) {
+ console.error(e);
+ }
+ }, []);
+
  const handleChange = (field: keyof typeof formData, value: string | boolean) => {
+ if (field === "timeZone") {
+ const oldTz = TIMEZONE_MAP[formData.timeZone] || "America/Los_Angeles";
+ const newTz = TIMEZONE_MAP[value as string] || "America/Los_Angeles";
+ 
+ try {
+ if (formData.startDate && formData.startTime && formData.endDate && formData.endTime) {
+ const startUTC = fromZonedTime(`${formData.startDate}T${formData.startTime}:00`, oldTz);
+ const endUTC = fromZonedTime(`${formData.endDate}T${formData.endTime}:00`, oldTz);
+ 
+ const formatLocal = (d: Date, tz: string) => {
+ const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+ const parts = f.formatToParts(d);
+ const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+ return {
+ date: `${p.year}-${p.month}-${p.day}`,
+ time: `${p.hour}:${p.minute}`
+ };
+ };
+ 
+ const startLocal = formatLocal(startUTC, newTz);
+ const endLocal = formatLocal(endUTC, newTz);
+ 
+ setFormData(prev => ({ 
+ ...prev, 
+ timeZone: value as string,
+ startDate: startLocal.date,
+ startTime: startLocal.time,
+ endDate: endLocal.date,
+ endTime: endLocal.time
+ }));
+ return;
+ }
+ } catch (e) {
+ console.error(e);
+ }
+ }
+ 
  setFormData(prev => ({ ...prev, [field]: value }));
  };
 
- const handleSave = () => {
- const newId = `APT-${Math.floor(10000 + Math.random() * 90000)}`;
- 
- let startsAt = new Date().toISOString();
- let endsAt = new Date(Date.now() + 3600000).toISOString();
+ const getHelperText = (dateStr: string, timeStr: string, timeZoneLabel: string) => {
+ if (!dateStr || !timeStr) return "";
  try {
-   startsAt = new Date(`${formData.startDate}T${formData.startTime}`).toISOString();
-   endsAt = new Date(`${formData.endDate}T${formData.endTime}`).toISOString();
- } catch (e) {}
+ const ianaTz = TIMEZONE_MAP[timeZoneLabel] || "America/Los_Angeles";
+ const utcDate = fromZonedTime(`${dateStr}T${timeStr}:00`, ianaTz);
+ 
+ const fShort = new Intl.DateTimeFormat('en-US', { timeZone: ianaTz, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+ const fOffset = new Intl.DateTimeFormat('en-US', { timeZone: ianaTz, timeZoneName: 'longOffset' });
+ 
+ const timeAndAbbrev = fShort.format(utcDate);
+ const offsetPart = fOffset.formatToParts(utcDate).find(p => p.type === 'timeZoneName')?.value || ""; 
+ const utcOffset = offsetPart.replace('GMT', 'UTC'); 
+ 
+ return `${timeAndAbbrev} · ${timeZoneLabel} (${utcOffset})`;
+ } catch (e) {
+ return "";
+ }
+ };
 
- const newRequest = {
- id: newId,
- title: formData.appointmentTitle || "Interpreting request",
- dateString: "Newly created draft",
- status: "Unfilled / draft",
- setting: formData.setting,
- actionRequired: true,
- timestamp: Date.now(),
- startsAt,
- endsAt,
- overview: { location: formData.venue || "TBD", reference: newId, status: "Unfilled / draft" },
- details: { setting: formData.setting, purpose: formData.purpose, format: formData.modality, timeZone: formData.timeZone, deafParticipant: formData.deafParticipant, peopleNeeding: formData.peopleNeeding, commPreferences: formData.commPreferences, qualifications: formData.qualifications },
- onsite: { venue: formData.venue, address: formData.address, building: formData.building, parking: formData.parking, entrance: formData.entrance, contact: formData.onsiteContactName, contactMethod: formData.onsiteContactPhone },
- requester: { name: formData.requesterName, org: formData.requesterOrg, email: formData.email, phone: formData.phone, prefContact: formData.prefContact, reqInterpreter: formData.prefInterpreter, teamSuggested: formData.teamSuggested, billOrg: formData.billOrg, billContact: formData.billContact, billEmail: formData.billEmail, poNumber: formData.poNumber },
- prepNotes: formData.prepNotes,
- privateNotes: formData.privateNotes,
- activity: "created just now"
+ const startDateTimeStr = `${formData.startDate}T${formData.startTime}`;
+ const endDateTimeStr = `${formData.endDate}T${formData.endTime}`;
+ const isTimeInvalid = new Date(startDateTimeStr) >= new Date(endDateTimeStr);
+
+ const handleSave = async () => {
+ let startsAt = new Date();
+ let endsAt = new Date(Date.now() + 3600000);
+ try {
+ const ianaTz = TIMEZONE_MAP[formData.timeZone] || "America/Los_Angeles";
+ startsAt = fromZonedTime(`${formData.startDate}T${formData.startTime}:00`, ianaTz);
+ endsAt = fromZonedTime(`${formData.endDate}T${formData.endTime}:00`, ianaTz);
+ } catch (e) {
+ console.error("Timezone parsing error", e);
+ }
+
+ const requestData: RequestData = {
+   brief: { hearingIdentity: "deaf" },
+   intake: {
+     program: formData.program as Program,
+     odhhSrn: formData.program === "WA ODHH" ? formData.odhhSrn : undefined,
+     odhhAccessCode: formData.program === "WA ODHH" ? formData.odhhAccessCode : undefined,
+     providerOneNumber: formData.program === "WA Apple Health" ? formData.providerOneNumber : undefined
+   },
+   overview: { location: formData.venue || "TBD", status: "Unfilled / draft" },
+   details: { setting: formData.setting, purpose: formData.purpose, format: formData.modality, timeZone: formData.timeZone, deafParticipant: formData.deafParticipant, peopleNeeding: formData.peopleNeeding, commPreferences: formData.commPreferences, qualifications: formData.qualifications },
+   onsite: { venue: formData.venue, address: formData.address, building: formData.building, parking: formData.parking, entrance: formData.entrance, contact: formData.onsiteContactName, contactMethod: formData.onsiteContactPhone },
+   requester: { name: formData.requesterName, org: formData.requesterOrg, email: formData.email, phone: formData.phone, prefContact: formData.prefContact, reqInterpreter: formData.prefInterpreter, teamSuggested: formData.teamSuggested, billOrg: formData.billOrg, billContact: formData.billContact, billEmail: formData.billEmail, poNumber: formData.poNumber },
+   prepNotes: formData.prepNotes,
+   privateNotes: formData.privateNotes,
+   positions: formData.positions,
+   requiredPositions: formData.positions === "Team — two independent positions" ? 2 : 1
  };
  
- addRequest(newRequest);
- router.push(`/requests/${newId}`);
+ try {
+   const dbId = await createRequest({
+     title: formData.appointmentTitle || "Interpreting request",
+     startsAt,
+     endsAt,
+     data: requestData
+   });
+   router.push(`/requests/${dbId}`);
+ } catch (err) {
+   console.error("Error creating request:", err);
+ }
  };
 
  const inputClass = "w-full bg-[#F4F3EF] border-none rounded-full px-4 py-2.5 text-sm text-gray-800 focus:ring-2 focus:ring-[#0B3B32] outline-none transition-shadow appearance-none";
@@ -315,19 +434,25 @@ export default function NewRequestPage() {
  </Field>
 
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-6">
- <Field label="Starts" subtext="11:41 AM PDT - Pacific Time — Seattle, Los Angeles (UTC-07:00)">
+ <Field label="Starts" subtext={getHelperText(formData.startDate, formData.startTime, formData.timeZone)}>
  <div className="flex flex-col sm:flex-row gap-2">
  <input type="date" className={inputClass} value={formData.startDate} onChange={(e) => handleChange("startDate", e.target.value)} />
  <input type="time" className={inputClass} value={formData.startTime} onChange={(e) => handleChange("startTime", e.target.value)} />
  </div>
  </Field>
- <Field label="Ends" subtext="12:41 PM PDT - Pacific Time — Seattle, Los Angeles (UTC-07:00)">
+ <Field label="Ends" subtext={getHelperText(formData.endDate, formData.endTime, formData.timeZone)}>
  <div className="flex flex-col sm:flex-row gap-2">
  <input type="date" className={inputClass} value={formData.endDate} onChange={(e) => handleChange("endDate", e.target.value)} />
  <input type="time" className={inputClass} value={formData.endTime} onChange={(e) => handleChange("endTime", e.target.value)} />
  </div>
  </Field>
  </div>
+ 
+ {isTimeInvalid && (
+ <div className="text-red-600 text-sm mt-2 font-medium">
+ The end time must be after the start time.
+ </div>
+ )}
 
  <div className="mt-6">
  <Field label="How will interpreting happen?">
@@ -449,6 +574,36 @@ export default function NewRequestPage() {
  </div>
  </div>
 
+ {/* Program and state identifiers Section */}
+ <div className={cardClass}>
+ <h2 className={sectionTitleClass}>Program and state identifiers</h2>
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+ <Field label="Funding program">
+ <CustomSelect options={["General", "WA ODHH", "WA Apple Health"]} value={formData.program} onChange={(val) => handleChange("program", val)} />
+ </Field>
+ {formData.program === "WA ODHH" && (
+ <Field label="Service Request Number (SRN)">
+ <input type="text" inputMode="numeric" pattern="\d*" className={inputClass} value={formData.odhhSrn} onChange={(e) => handleChange("odhhSrn", e.target.value.replace(/\D/g, ''))} />
+ </Field>
+ )}
+ {formData.program === "WA Apple Health" && (
+ <Field label="ProviderOne client number">
+ <input type="text" className={inputClass} value={formData.providerOneNumber} onChange={(e) => handleChange("providerOneNumber", e.target.value)} />
+ </Field>
+ )}
+ </div>
+ {formData.program === "WA ODHH" && (
+ <div className="mt-6">
+ <Field 
+ label="ODHH access code"
+ subtext="Staff only — never shown to interpreters or included in notifications. Pilot: enter fictional values only; this app is not approved for real Medicaid or patient data."
+ >
+ <input type="text" className={inputClass} value={formData.odhhAccessCode} onChange={(e) => handleChange("odhhAccessCode", e.target.value)} />
+ </Field>
+ </div>
+ )}
+ </div>
+
  {/* Notes Section */}
  <div className={cardClass}>
  <h2 className={sectionTitleClass}>Notes</h2>
@@ -475,7 +630,7 @@ export default function NewRequestPage() {
  label="Positions staff will fill"
  subtext="Save the request, then choose a recipient for each position. No interpreter is booked yet."
  >
- <CustomSelect options={["One interpreter"]} value={formData.positions} onChange={(val) => handleChange("positions", val)} />
+ <CustomSelect options={["One interpreter", "Team — two independent positions"]} value={formData.positions} onChange={(val) => handleChange("positions", val)} />
  </Field>
  </div>
 
@@ -495,8 +650,13 @@ export default function NewRequestPage() {
  </div>
 
  {/* Bottom Actions */}
- <div className="flex items-center gap-4 pt-4">
- <button onClick={handleSave} className="bg-[var(--forest)] text-[var(--canvas)] px-6 py-2.5 rounded-full font-medium transition-opacity hover:opacity-90">
+ {isTimeInvalid && (
+ <div className="text-red-600 text-sm font-medium mb-2">
+ The end time must be after the start time.
+ </div>
+ )}
+ <div className="flex items-center gap-4 pt-2">
+ <button onClick={handleSave} disabled={isTimeInvalid} className="bg-[var(--forest)] text-[var(--canvas)] px-6 py-2.5 rounded-full font-medium transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
  Save draft
  </button>
  <button onClick={() => router.push("/dashboard")} className="text-gray-600 px-4 py-2.5 font-medium transition-colors hover:bg-gray-100 rounded-full">

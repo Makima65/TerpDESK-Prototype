@@ -3,53 +3,100 @@ import React from "react";
 import Link from "next/link";
 import { useRequests } from "@/context/RequestsContext";
 import { motion } from "framer-motion";
+import { getStatusFilters, getStaffingLabel, getStaffingRatio } from "@/utils/statusEngine";
+import { fetchLiveRequests } from "@/app/actions/getRequests";
+import EmailIngestTester from "@/components/agency/EmailIngestTester";
 
 export default function DashboardPage() {
- const { requests } = useRequests();
- 
- const totalAppointments = requests.length;
- const needingCoverage = requests.filter(r => r.status === "Unfilled / draft").length;
- const pendingOffersCount = requests.filter(r => r.status.includes("Awaiting")).length;
- const staffFollowUpCount = requests.filter(r => r.status === "Partially staffed").length;
- const needsReplacementCount = 0;
+ const [requests, setRequests] = React.useState<any[]>([]);
+ const [interpreterJobs, setInterpreterJobs] = React.useState<any[]>([]);
+
+ // Re-callable so client-side consumers (e.g. the ODHH ingest tester) can force a reload from PostgreSQL.
+ const loadRequests = React.useCallback(async (): Promise<void> => {
+   try {
+     const data = await fetchLiveRequests();
+     setRequests(data);
+   } catch (e) {
+     console.error(e);
+   }
+ }, []);
+
+ React.useEffect(() => {
+   void loadRequests();
+
+   const loadJobs = () => {
+     try {
+       const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
+       setInterpreterJobs(storedJobs);
+     } catch (e) {
+       console.error(e);
+     }
+   };
+   loadJobs();
+   window.addEventListener('storage', loadJobs);
+   return () => window.removeEventListener('storage', loadJobs);
+ }, [loadRequests]);
+
+ const formatEventTime = (startsAt?: string, endsAt?: string, fallback?: string) => {
+   if (!startsAt) return fallback || "Time not specified";
+   const start = new Date(startsAt);
+   const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + 3600000);
+   const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+   const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+   const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+   return `${dateStr} · ${timeStart} – ${timeEnd}`;
+ };
+
+ const totalAppointments = requests.filter(r => !getStatusFilters(r as any).isCancelled).length;
+ const needingCoverage = requests.filter(r => getStatusFilters(r as any).needingCoverage).length;
+ const pendingOffersCount = requests.filter(r => getStatusFilters(r as any).hasPendingOffer).length;
+ const staffFollowUpCount = requests.filter(r => getStatusFilters(r as any).staffFollowUp).length;
+ const awaitingReviewCount = requests.filter(r => r.status === 'awaiting_review').length;
+ const needsReplacementCount = requests.filter(r => getStatusFilters(r as any).needsReplacement).length;
 
  const getNeedsAttentionPriority = (status: string) => {
-   if (status === 'Needs replacement') return 1;
-   if (status === 'Staff follow-up') return 2;
-   if (status.includes('Awaiting') || status.includes('Offer') || status.includes('Pending')) return 3;
-   if (status.includes('Unfilled') || status.includes('draft') || status.includes('Partially')) return 4;
+   const s = status.toLowerCase();
+   if (s === 'needs replacement') return 1;
+   if (s === 'staff follow-up') return 2;
+   if (s.includes('awaiting') || s.includes('offer') || s.includes('pending')) return 3;
+   if (s.includes('unfilled') || s.includes('draft') || s.includes('partially')) return 4;
    return 5;
  };
 
  const needsAttentionJobs = [...requests]
-   .filter(r => r.status !== 'Cancelled' && getNeedsAttentionPriority(r.status) < 5)
-   .sort((a, b) => getNeedsAttentionPriority(a.status) - getNeedsAttentionPriority(b.status));
+   .filter(r => {
+     const filters = getStatusFilters(r as any);
+     if (filters.isCancelled) return false;
+     if (r.endsAt && Date.now() > new Date(r.endsAt).getTime()) return false;
+     
+     if (filters.fullyStaffed && !filters.staffFollowUp && !filters.hasPendingOffer) return false;
+     
+     return filters.needsReplacement || filters.needingCoverage || filters.hasPendingOffer || filters.staffFollowUp;
+   })
+   .map(r => ({ ...r, displayStatus: getStaffingLabel(r as any) }))
+   .sort((a, b) => getNeedsAttentionPriority(a.displayStatus) - getNeedsAttentionPriority(b.displayStatus));
 
  const upcomingBookingsJobs = [...requests]
    .filter(r => {
      const s = r.status.toLowerCase();
      if (s.includes('cancel')) return false;
-     if (s.includes('unfilled') || s.includes('draft')) return false;
-     return s.includes('staffed') || s.includes('booked') || s.includes('accepted') || s.includes('assigned');
+     
+     const reqJobs = interpreterJobs.filter(j => j.id === r.id);
+     const acceptedCount = reqJobs.filter(j => j.status === 'booked' || j.status === 'accepted').length;
+     
+     // a) UTC start time in the future
+     if (r.startsAt && Date.now() >= new Date(r.startsAt).getTime()) return false;
+     
+     // b) Active staffing
+     const hasStaffing = acceptedCount > 0 || s.includes('staffed') || s.includes('booked') || s.includes('assigned');
+     return hasStaffing;
    })
    .sort((a, b) => {
-     const timeA = (a.timestamp && !isNaN(Number(a.timestamp))) ? Number(a.timestamp) : 0;
-     const timeB = (b.timestamp && !isNaN(Number(b.timestamp))) ? Number(b.timestamp) : 0;
+     const timeA = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+     const timeB = b.startsAt ? new Date(b.startsAt).getTime() : 0;
      return timeA - timeB;
    })
    .slice(0, 6);
-
- const [awaitingReviewCount, setAwaitingReviewCount] = React.useState(0);
- 
- React.useEffect(() => {
- try {
- const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
- const submitted = storedJobs.filter((job: any) => job.serviceRecordState === 'submitted').length;
- setAwaitingReviewCount(submitted);
- } catch (e) {
- console.error(e);
- }
- }, []);
 
   return (
   <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mx-auto max-w-[1200px] space-y-10 pt-2">
@@ -76,6 +123,9 @@ export default function DashboardPage() {
  New request
  </Link>
  </div>
+
+ {/* DEMO: ODHH email intake simulator — remove before production */}
+ <EmailIngestTester onIngested={loadRequests} />
 
  {/* Dark Stats Card */}
  <div className="rounded-2xl border border-gray-200 bg-[var(--forest)] p-8 text-white ">
@@ -123,16 +173,24 @@ export default function DashboardPage() {
  <div className="space-y-2.5">
  {needsAttentionJobs.length === 0 && <p className="text-sm text-[var(--sage)]">Nothing needs your attention right now.</p>}
  {needsAttentionJobs.map(request => {
-  const s = request.status;
+  const s = (request as any).displayStatus;
   let dotColor = "bg-[#B59A6D]"; // Yellow default
   let btnLabel = "Manage slots";
+  
+  const statusLower = s.toLowerCase();
   
   if (s === 'Needs replacement' || s === 'Staff follow-up') {
     dotColor = "bg-red-500";
     btnLabel = "Open";
-  } else if (s.includes('Awaiting') || s.includes('Offer') || s.includes('Pending')) {
+  } else if (statusLower.includes('awaiting') || statusLower.includes('offer') || statusLower.includes('pending')) {
     dotColor = "bg-[#AF4A3F]"; // Coral
     btnLabel = "View";
+  } else if (statusLower.includes('unfilled') || statusLower.includes('draft')) {
+    btnLabel = "Open";
+  }
+  
+  if ((request as any).hasAcceptedOffer) {
+    btnLabel = "Manage slots";
   }
 
   return (
@@ -140,8 +198,8 @@ export default function DashboardPage() {
    <div className="flex items-start gap-3">
    <div className={`mt-[7px] h-2 w-2 shrink-0 rounded-full ${dotColor}`}></div>
    <div className="flex flex-col">
-   <p className="text-[15px] font-medium text-slate-800">{request.status} — {request.title}</p>
-   <p className="mt-0.5 text-[13px] text-[var(--sage)]">{request.dateString}</p>
+   <p className="text-[15px] font-medium text-slate-800">{(request as any).displayStatus} — {request.title}</p>
+   <p className="mt-0.5 text-[13px] text-[var(--sage)]">{formatEventTime(request.startsAt, request.endsAt, request.dateString)}</p>
    {request.pendingOffer && <p className="text-xs text-[#AF4A3F] mt-1 font-medium">Offer expires soon</p>}
    </div>
    </div>
@@ -168,7 +226,7 @@ export default function DashboardPage() {
   <Link href={`/requests/${job.id}`} key={job.id} className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-neutral-100 pb-6 last:border-0 last:pb-0 hover:bg-gray-50 transition-colors cursor-pointer">
   <div className="space-y-1">
   <p className="text-[15px] font-medium text-[var(--ink)]">{job.title}</p>
-  <p className="text-[13px] text-[var(--sage)]">{job.dateString}</p>
+  <p className="text-[13px] text-[var(--sage)]">{formatEventTime(job.startsAt, job.endsAt, job.dateString)}</p>
   <p className="text-[13px] text-[var(--sage)]">{job.location || 'Virtual details pending'}</p>
   </div>
   <div className="shrink-0 mt-1 sm:mt-0">

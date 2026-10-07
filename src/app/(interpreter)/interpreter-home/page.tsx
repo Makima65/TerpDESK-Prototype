@@ -4,53 +4,51 @@ import React from "react";
 import Link from "next/link";
 import { Calendar, MapPin } from "lucide-react";
 import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
+import { useGlobalState } from "@/context/GlobalContext";
 import { motion } from "framer-motion";
+import { fetchInterpreterOffers } from "@/app/actions/getInterpreterOffers";
+import { format } from "date-fns";
 
 export default function InterpreterHomePage() {
   const { jobs, acceptJobOffer } = useInterpreterJobs();
-  const [offers, setOffers] = React.useState<any[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const item = window.localStorage.getItem('terpdesk_offers');
-      if (!item) return [];
-      const parsed = JSON.parse(item);
-      return parsed.filter((o: any) => !(o.title && o.title.includes('Fictional')));
-    } catch (error) {
-      return [];
-    }
-  });
+  const { currentUser } = useGlobalState();
+  const [offers, setOffers] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    const loadOffers = () => {
-      const data = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
-      setOffers(data.filter((o: any) => !(o.title && o.title.includes('Fictional'))));
-    };
-    loadOffers();
-    window.addEventListener('storage', loadOffers);
-    return () => window.removeEventListener('storage', loadOffers);
-  }, []);
+    if (currentUser?.email) {
+      fetchInterpreterOffers(currentUser.email).then(data => {
+        setOffers(data);
+      }).catch(console.error);
+    }
+  }, [currentUser?.email]);
+
+  const [isPending, startTransition] = React.useTransition();
+  const [actingOfferId, setActingOfferId] = React.useState<string | null>(null);
 
   const handleAcceptOffer = (offer: any) => {
-    // Call the robust context method instead of mutating local arrays directly
-    acceptJobOffer(offer.id);
+    setActingOfferId(offer.id);
+    startTransition(async () => {
+      setOffers(prev => prev.filter(o => o.id !== offer.id));
+      await acceptJobOffer(offer.id);
+      setActingOfferId(null);
+    });
   };
 
  const visibleAppointments = jobs.filter((job) => job.status !== "declined" && job.status !== "released").length;
  const upcomingBookings = jobs.filter((job) => job.status === "booked" && (!job.endsAt || new Date(job.endsAt) > new Date())).length;
- const currentInterpreterId = 'terp-1'; // Mocked current interpreter id
-  const pendingOffersList = offers.filter(o => o.status === 'pending' && (!o.interpreterId || o.interpreterId === currentInterpreterId));
+  const pendingOffersList = offers.filter(o => o.status === 'pending');
   const pendingOffers = pendingOffersList.length;
  const hoursToSubmit = jobs.filter((job) => job.status === "booked" && job.endsAt && new Date(job.endsAt) <= new Date() && job.serviceRecordState === "not_started").length;
 
- const formatJobDate = (startStr?: string, endStr?: string) => {
-   if (!startStr) return "Date TBD";
-   const start = new Date(startStr);
-   const end = endStr ? new Date(endStr) : new Date(start.getTime() + 2 * 60 * 60 * 1000);
-   const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
-   const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-   const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-   return `${dateStr} · ${timeStart} – ${timeEnd}`;
- };
+  const formatJobDate = (startStr?: string, endStr?: string) => {
+    if (!startStr) return "Date TBD";
+    const start = new Date(startStr);
+    const end = endStr ? new Date(endStr) : new Date(start.getTime() + 2 * 60 * 60 * 1000);
+    const dateStr = format(start, "EEE, MMM d").toUpperCase();
+    const timeStart = format(start, "h:mm a");
+    const timeEnd = format(end, "h:mm a");
+    return `${dateStr} · ${timeStart} – ${timeEnd}`;
+  };
 
  return (
  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-[1200px] mx-auto p-4 md:p-8 w-full space-y-8 pb-24 antialiased">
@@ -168,9 +166,17 @@ export default function InterpreterHomePage() {
       </Link>
       <button
         onClick={() => handleAcceptOffer(job)}
-        className="text-[13px] font-medium text-white bg-[var(--forest)] hover:bg-[#145347] rounded-full px-4 py-2 text-center transition-colors flex-1 md:flex-none cursor-pointer"
+        disabled={isPending && actingOfferId === job.id}
+        className="text-[13px] font-medium text-white bg-[var(--forest)] hover:bg-[#145347] disabled:opacity-50 disabled:cursor-not-allowed rounded-full px-4 py-2 text-center transition-colors flex-1 md:flex-none cursor-pointer flex justify-center items-center gap-2"
       >
-        Accept
+        {isPending && actingOfferId === job.id ? (
+          <>
+            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Accepting...
+          </>
+        ) : (
+          'Accept'
+        )}
       </button>
     </div>
   </div>

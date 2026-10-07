@@ -1,28 +1,34 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, ChevronDown, ChevronRight, MapPin } from "lucide-react";
 import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
+import { format } from "date-fns";
+import { giveBackAssignment } from "@/app/actions/giveBackAssignment";
+import { submitInterpreterHours } from "@/app/actions/submitInterpreterHours";
 
 const formatJobDate = (startStr?: string, endStr?: string) => {
   if (!startStr) return "Date TBD";
   const start = new Date(startStr);
   const end = endStr ? new Date(endStr) : new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
-  const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  const dateStr = format(start, "EEE, MMM d").toUpperCase();
+  const timeStart = format(start, "h:mm a");
+  const timeEnd = format(end, "h:mm a");
   return `${dateStr} · ${timeStart} – ${timeEnd}`;
 };
 
 function ServiceTimeBlock({ job }: { job: any }) {
   const [serviceRecord, setServiceRecord] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const router = useRouter();
+  const [isSubmitting, startSubmit] = useTransition();
 
   // Form states
-  const [actualStart, setActualStart] = useState("");
-  const [actualEnd, setActualEnd] = useState("");
+  const toLocalInput = (iso?: string) => (iso ? format(new Date(iso), "yyyy-MM-dd'T'HH:mm") : "");
+  const [actualStart, setActualStart] = useState(() => toLocalInput(job.startsAt));
+  const [actualEnd, setActualEnd] = useState(() => toLocalInput(job.endsAt));
   const [breakMinutes, setBreakMinutes] = useState("0");
   
   type MileageLeg = { id: number, from: string, to: string, distance: number | string, type: 'total' | 'round_trip' };
@@ -54,7 +60,9 @@ function ServiceTimeBlock({ job }: { job: any }) {
 
   if (job.status !== 'booked') return null;
 
-  const isPastEndTime = job.endsAt ? new Date() > new Date(job.endsAt) : false;
+  // TODO: Restore date lock after demo.
+  // const isPastEndTime = job.endsAt ? Date.now() > new Date(job.endsAt).getTime() : false;
+  const isPastEndTime = true;
 
   const totalMileage = mileageLegs.reduce((acc, leg) => {
     const dist = parseFloat(leg.distance as string) || 0;
@@ -80,17 +88,24 @@ function ServiceTimeBlock({ job }: { job: any }) {
       version: 1
     };
 
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('terpdesk_service_records');
-      const records = stored ? JSON.parse(stored) : [];
-      records.push(newRecord);
-      localStorage.setItem('terpdesk_service_records', JSON.stringify(records));
-      
-      window.dispatchEvent(new Event('storage'));
-      
+    const startIso = actualStart || job.startsAt;
+    const endIso = actualEnd || job.endsAt;
+
+    startSubmit(async () => {
+      await submitInterpreterHours(job.requestId, startIso, endIso, totalMileage);
+
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('terpdesk_service_records');
+        const records = stored ? JSON.parse(stored) : [];
+        records.push(newRecord);
+        localStorage.setItem('terpdesk_service_records', JSON.stringify(records));
+        window.dispatchEvent(new Event('storage'));
+      }
+
       setServiceRecord(newRecord);
       setIsFormOpen(false);
-    }
+      router.refresh();
+    });
   };
 
   let serviceTimeHours = "-";
@@ -121,11 +136,25 @@ function ServiceTimeBlock({ job }: { job: any }) {
       <h2 className="text-lg font-semibold text-[var(--ink)] mb-4">Actual service time</h2>
       <p className="text-[14px] text-[var(--sage)] mb-6">Separate from the scheduled booking above. Submitting or approving hours never changes the booking, the calendar or anyone's reservation, and it does not calculate pay.</p>
 
-      {serviceRecord?.state === 'submitted' ? (
+      {['approved', 'completed', 'billed'].includes(job.requestStatus) && serviceRecord?.state !== 'submitted' ? (
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-medium text-[var(--ink)]">Hours Approved by Agency</h3>
+          <span className="px-3 py-1 text-[12px] font-medium rounded-full bg-green-100 text-green-700 capitalize">{job.requestStatus}</span>
+        </div>
+      ) : job.requestStatus === 'awaiting_review' && serviceRecord?.state !== 'submitted' ? (
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-medium text-[var(--ink)]">Hours Submitted &amp; Awaiting Agency Review</h3>
+          <span className="px-3 py-1 text-[12px] font-medium rounded-full bg-purple-100 text-purple-700">Awaiting review</span>
+        </div>
+      ) : serviceRecord?.state === 'submitted' || ['approved', 'completed', 'billed'].includes(job.requestStatus) ? (
         <div className="mb-4">
           <div className="flex justify-between items-center mb-4">
-             <h3 className="font-medium text-[var(--ink)]">Your reported hours</h3>
-             <span className="px-3 py-1 text-[12px] font-medium rounded-full bg-purple-100 text-purple-700">Awaiting review</span>
+             <h3 className="font-medium text-[var(--ink)]">
+               {['approved', 'completed', 'billed'].includes(job.requestStatus) ? 'Hours Approved by Agency' : 'Hours Submitted & Awaiting Agency Review'}
+             </h3>
+             <span className={`px-3 py-1 text-[12px] font-medium rounded-full capitalize ${['approved', 'completed', 'billed'].includes(job.requestStatus) ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
+               {['approved', 'completed', 'billed'].includes(job.requestStatus) ? job.requestStatus : 'Awaiting review'}
+             </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm mb-6">
             <div className="space-y-4">
@@ -260,7 +289,7 @@ function ServiceTimeBlock({ job }: { job: any }) {
              </div>
              
              <div className="flex gap-3">
-                <button onClick={handleSubmit} disabled={!timeChecked || !mileageChecked || !signatureChecked} className="bg-[#1B433C] text-white rounded-full px-5 py-2 text-sm font-medium hover:bg-[#14332D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Submit actual hours</button>
+                <button onClick={handleSubmit} disabled={isSubmitting || !timeChecked || !mileageChecked || !signatureChecked} className="bg-[#1B433C] text-white rounded-full px-5 py-2 text-sm font-medium hover:bg-[#14332D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{isSubmitting ? "Submitting..." : "Submit actual hours"}</button>
                 <button className="bg-white border border-gray-300 text-gray-700 rounded-full px-5 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">Save draft</button>
              </div>
           </div>
@@ -274,7 +303,7 @@ function ServiceTimeBlock({ job }: { job: any }) {
                  <div className="space-y-4">
                    <div>
                      <div className="text-[var(--sage)] mb-1">Scheduled booking</div>
-                     <div className="text-[var(--ink)]">{job.dateString}</div>
+                     <div className="text-[var(--ink)]">{job.startsAt ? formatJobDate(job.startsAt, job.endsAt) : job.dateString}</div>
                    </div>
                    <div>
                      <div className="text-[var(--sage)] mb-1">Unpaid break</div>
@@ -319,8 +348,43 @@ function ServiceTimeBlock({ job }: { job: any }) {
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { jobs, acceptJobOffer, declineOffer, releaseJob } = useInterpreterJobs();
+  const router = useRouter();
+  const { jobs, acceptJobOffer, declineOffer, markJobReleased } = useInterpreterJobs();
   const [isOffersOpen, setIsOffersOpen] = useState(true);
+  const [showGiveBackModal, setShowGiveBackModal] = useState(false);
+  const [giveBackReason, setGiveBackReason] = useState("");
+  const [isPending, startTransition] = React.useTransition();
+  const [actingAction, setActingAction] = useState<'accept' | 'decline' | null>(null);
+
+  const handleAccept = () => {
+    setActingAction('accept');
+    startTransition(async () => {
+      await acceptJobOffer(job!.id);
+      setActingAction(null);
+    });
+  };
+
+  const handleDecline = () => {
+    setActingAction('decline');
+    startTransition(async () => {
+      await declineOffer(id);
+      setActingAction(null);
+    });
+  };
+
+  const handleGiveBack = () => {
+    setActingAction('decline'); // Reuse 'decline' or create a new 'giveBack' state, but 'decline' disables buttons which is good
+    startTransition(async () => {
+      if (job) {
+        await giveBackAssignment(job.id, job.requestId, giveBackReason);
+        setShowGiveBackModal(false);
+        setActingAction(null);
+        markJobReleased(job.id);
+        router.refresh();
+        router.push('/jobs');
+      }
+    });
+  };
 
   const job = jobs.find(j => j.id === id);
 
@@ -498,22 +562,34 @@ export default function JobDetailPage() {
                       </span>
                     </div>
                     <p className="text-[13px] text-[var(--sage)]">
-                      Response due Fri, Oct 2 · 12:00 AM GMT+8
+                      Response due {job.startsAt ? formatJobDate(job.startsAt) : 'soon'}
                     </p>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
                     <button 
-                      onClick={() => acceptJobOffer(job.id)}
-                      className="bg-[var(--forest)] hover:bg-[#145347] cursor-pointer text-white text-[13px] font-medium px-5 py-2 rounded-full transition-colors w-full sm:w-auto "
+                      onClick={handleAccept}
+                      disabled={isPending && actingAction === 'accept'}
+                      className="bg-[var(--forest)] hover:bg-[#145347] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-white text-[13px] font-medium px-5 py-2 rounded-full transition-colors w-full sm:w-auto flex justify-center items-center gap-2"
                     >
-                      Accept offer
+                      {isPending && actingAction === 'accept' ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Accepting...
+                        </>
+                      ) : 'Accept offer'}
                     </button>
                     <button 
-                      onClick={() => declineOffer(job.id)}
-                      className="bg-white hover:bg-gray-50 cursor-pointer text-gray-800 border border-gray-200 text-[13px] font-medium px-5 py-2 rounded-full transition-colors w-full sm:w-auto "
+                      onClick={handleDecline}
+                      disabled={isPending && actingAction === 'decline'}
+                      className="bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-gray-800 border border-gray-200 text-[13px] font-medium px-5 py-2 rounded-full transition-colors w-full sm:w-auto flex justify-center items-center gap-2"
                     >
-                      Decline offer
+                      {isPending && actingAction === 'decline' ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-gray-800" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          Declining...
+                        </>
+                      ) : 'Decline offer'}
                     </button>
                   </div>
                 </div>
@@ -545,7 +621,7 @@ export default function JobDetailPage() {
 
                 <div className="flex justify-start gap-3 flex-wrap mt-2">
                   <button 
-                    onClick={() => releaseJob(job.id)}
+                    onClick={() => setShowGiveBackModal(true)}
                     className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 text-[13px] font-medium px-5 py-2 rounded-full transition-colors cursor-pointer"
                   >
                     Give back this assignment
@@ -558,6 +634,53 @@ export default function JobDetailPage() {
 
         </div>
       </div>
+      
+      {showGiveBackModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-xl">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-[22px] font-semibold text-gray-900">Give back this assignment</h3>
+              <button onClick={() => setShowGiveBackModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <span className="sr-only">Close</span>
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <p className="text-[15px] leading-relaxed text-gray-600 mb-6">
+              This releases your position and tells the agency it needs a replacement. It does not cancel the appointment, and any other interpreter on this job keeps their booking. You will lose access to the job details, prep materials and any meeting link. A short record stays in your history.
+            </p>
+            
+            <div className="mb-8">
+              <label className="block text-[13px] text-gray-500 mb-2">Reason for the agency</label>
+              <input 
+                type="text" 
+                value={giveBackReason}
+                onChange={(e) => setGiveBackReason(e.target.value)}
+                className="w-full bg-[#F5F4F0] border border-[#EBE8DF] rounded-xl px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-[#0B3B32]/30"
+              />
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-end gap-3">
+              <button 
+                onClick={() => setShowGiveBackModal(false)}
+                className="px-6 py-2.5 rounded-full border border-gray-200 text-[15px] font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Keep this assignment
+              </button>
+              <button 
+                onClick={handleGiveBack}
+                disabled={giveBackReason.trim() === "" || isPending}
+                className={`px-6 py-2.5 rounded-full text-white text-[15px] font-medium transition-colors ${giveBackReason.trim() === "" || isPending ? 'bg-[#D49F96] opacity-50 cursor-not-allowed' : 'bg-[#C94A38] hover:bg-[#B03C2C]'}`}
+              >
+                {isPending ? 'Releasing...' : 'Give back this assignment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }

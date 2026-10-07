@@ -6,6 +6,11 @@ import { useParams } from "next/navigation";
 import { useRequests } from "@/context/RequestsContext";
 import { useGlobalState } from "@/context/GlobalContext";
 import { ChevronDown } from "lucide-react";
+import { fetchLiveRequestById } from "@/app/actions/getRequests";
+import { getInterpreters } from "@/app/actions/getInterpreters";
+import { createOffer } from "@/app/actions/createOffer";
+import { updateOfferStatus } from "@/app/actions/updateOfferStatus";
+import { cancelRequest } from "@/app/actions/cancelRequest";
 
 function getMockInterpreterDetails(id: string) {
   if (id === 'terp-1') return { name: "Active Interpreter" };
@@ -31,14 +36,18 @@ function formatLabel(key: string) {
 export default function AssignmentDetailPage() {
   const params = useParams();
   const id = params?.id as string;
-  const { requests, updateRequest } = useRequests();
+  const { updateRequest } = useRequests();
   const { currentUser, memberships } = useGlobalState();
 
-  const agencyId = currentUser.agency_id || "agency-1";
-  const activeMemberships = memberships.filter(m => m.agency_id === agencyId && m.active);
-  const activeRoster = activeMemberships.map(m => ({
-    id: m.user_id,
-    name: getMockInterpreterDetails(m.user_id).name,
+  const [dbInterpreters, setDbInterpreters] = useState<any[]>([]);
+
+  useEffect(() => {
+    getInterpreters().then(setDbInterpreters).catch(console.error);
+  }, []);
+
+  const activeRoster = dbInterpreters.map(m => ({
+    id: m.id,
+    name: m.name,
     isAutoFillEligible: true
   }));
 
@@ -51,39 +60,53 @@ export default function AssignmentDetailPage() {
  const [isEligible, setIsEligible] = useState<boolean | null>(null);
  const [bookedInterpreter, setBookedInterpreter] = useState<string | null>(null);
  const [previousOffers, setPreviousOffers] = useState<{ name: string; status: string; date: string }[]>([]);
- const [isCancelled, setIsCancelled] = useState(false);
+ const [foundRequest, setFoundRequest] = useState<any>(null);
+ const [isLoading, setIsLoading] = useState(true);
+
+ const isCancelled = foundRequest?.status === 'Cancelled';
  const [showCancelModal, setShowCancelModal] = useState(false);
- const [cancelReason, setCancelReason] = useState('');
+ const [cancelReasonInput, setCancelReasonInput] = useState('');
  const [clientRequested, setClientRequested] = useState(false);
- const [cancelDate, setCancelDate] = useState('');
+ const cancelReason = foundRequest?.cancelReason || cancelReasonInput;
+ const cancelDate = foundRequest?.canceledAt || '';
+
+
+
+ 
+
+  useEffect(() => {
+    if (id) {
+      fetchLiveRequestById(id).then(data => {
+        setFoundRequest(data);
+        setIsLoading(false);
+      }).catch(err => {
+        console.error(err);
+        setIsLoading(false);
+      });
+    }
+  }, [id]);
 
  useEffect(() => {
- const stored = localStorage.getItem(`agency_staffing_state_${id}`);
- if (stored) {
- try {
- const data = JSON.parse(stored);
- if (data.pendingOffer) {
- setPendingOffer(data.pendingOffer);
- }
- if (data.bookedInterpreter) {
- setBookedInterpreter(data.bookedInterpreter);
- }
- if (data.previousOffers) {
- setPreviousOffers(data.previousOffers);
- }
- if (data.isCancelled) {
- setIsCancelled(data.isCancelled);
- setCancelReason(data.cancelReason || '');
- setClientRequested(data.clientRequested || false);
- setCancelDate(data.cancelDate || '');
- }
- } catch (e) {
- console.error("Failed to parse staffing state", e);
- }
- }
- }, [id]);
-
- const foundRequest = requests.find((r) => String(r.id) === String(id));
+   if (foundRequest) {
+      if (foundRequest.slots) {
+         const needsReplacement = foundRequest.slots.some((s: any) => !s.reservedBy && s.needsReplacement);
+         if (needsReplacement) {
+            setBookedInterpreter(null);
+         }
+      }
+      if (foundRequest.offers && Array.isArray(foundRequest.offers)) {
+         const activeOffer = foundRequest.offers.find((o: any) => o.state === 'pending' && new Date(o.expiresAt) > new Date());
+         if (activeOffer) {
+            const expDate = new Date(activeOffer.expiresAt);
+            setPendingOffer({
+               interpreterName: activeOffer.interpreterName,
+               date: expDate.toISOString().split('T')[0],
+               time: expDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+         }
+      }
+   }
+ }, [foundRequest]);
 
  const getPayloadLocation = () => {
  if (foundRequest?.location && foundRequest.location.includes('·')) {
@@ -96,28 +119,15 @@ export default function AssignmentDetailPage() {
  setShowCancelModal(true);
  };
 
- const confirmCancelAppointment = () => {
- setIsCancelled(true);
- setPendingOffer(null);
- setBookedInterpreter(null);
- const dateNow = new Date().toISOString();
- setCancelDate(dateNow);
- localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ 
- previousOffers, 
- isCancelled: true, 
- cancelReason, 
- clientRequested,
- cancelDate: dateNow
- }));
-
- const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
- const jobIndex = storedJobs.findIndex((job: any) => String(job.id) === String(id));
- if (jobIndex > -1) {
- storedJobs[jobIndex].status = 'cancelled';
- localStorage.setItem('terpdesk_interpreter_jobs', JSON.stringify(storedJobs));
- }
- updateRequest(id, { status: 'Cancelled' });
- setShowCancelModal(false);
+ const confirmCancelAppointment = async () => {
+   try {
+     await cancelRequest(id, cancelReasonInput);
+     const updatedRequest = await fetchLiveRequestById(id);
+     setFoundRequest(updatedRequest);
+     setShowCancelModal(false);
+   } catch (err) {
+     console.error(err);
+   }
  };
 
  const handleAutoBook = () => {
@@ -150,7 +160,7 @@ export default function AssignmentDetailPage() {
  updateRequest(id, { status: 'Partially staffed' });
  };
 
- const handleCreateOffer = () => {
+ const handleCreateOffer = async () => {
     if (!recipient || !expiryDate || !expiryTime) {
       setErrorMessage('Please select an interpreter and set a valid future expiry date/time before the appointment starts.');
       return;
@@ -162,46 +172,32 @@ export default function AssignmentDetailPage() {
       return;
     }
 
-    const selectedName = activeRoster.find(i => i.id === recipient)?.name || 'Unknown Interpreter';
-    const newOffer = { interpreterName: selectedName, date: expiryDate, time: expiryTime };
-    setPendingOffer(newOffer);
-    setErrorMessage('');
+    try {
+      await createOffer({
+        requestId: id,
+        interpreterId: recipient,
+        expiresAt: expiry
+      });
 
-    localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ pendingOffer: newOffer, previousOffers }));
-
-    const storedOffers = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
-    const newOfferObj = {
-      id: id,
-      title: foundRequest?.title || 'Unknown Job',
-      startsAt: foundRequest?.startsAt || (foundRequest?.timestamp ? new Date(foundRequest.timestamp).toISOString() : new Date().toISOString()),
-      endsAt: foundRequest?.endsAt || (foundRequest?.timestamp ? new Date(foundRequest.timestamp + 3600000).toISOString() : new Date().toISOString()),
-      agencyName: 'QA Fixture Agency',
-      status: 'pending',
-      interpreterId: recipient
-    };
-    const offerIndex = storedOffers.findIndex((o: any) => o.id === id);
-    if (offerIndex > -1) {
-      storedOffers[offerIndex] = { ...storedOffers[offerIndex], ...newOfferObj };
-    } else {
-      storedOffers.push(newOfferObj);
+      // Refetch the request to get updated offers list
+      const updatedRequest = await fetchLiveRequestById(id);
+      setFoundRequest(updatedRequest);
+      
+      setErrorMessage('');
+      setRecipient('');
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Failed to create offer. Please try again.');
     }
-    localStorage.setItem('terpdesk_offers', JSON.stringify(storedOffers));
-
-    const notifications = JSON.parse(localStorage.getItem('terpdesk_notifications') || '[]');
-    notifications.push({
-      id: Date.now().toString(),
-      type: 'offer_received',
-      message: `New offer received from ${newOfferObj.agencyName}`,
-      read: false,
-      interpreterId: recipient
-    });
-    localStorage.setItem('terpdesk_notifications', JSON.stringify(notifications));
-    
-    // Dispatch storage event manually for same-window updates if needed, though usually window storage event is cross-tab only
-    window.dispatchEvent(new Event('storage'));
-    
-    updateRequest(id, { status: 'Offer awaiting response' });
   };
+
+ if (isLoading) {
+  return (
+    <div className="max-w-[1200px] mx-auto p-6 flex flex-col items-center justify-center h-[50vh]">
+      <h1 className="text-2xl font-bold text-gray-800 mb-4">Loading request...</h1>
+    </div>
+  );
+ }
 
  if (!foundRequest) {
  return (
@@ -227,6 +223,11 @@ export default function AssignmentDetailPage() {
 
  const cardClass = "bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 border border-gray-200/50 shadow-none space-y-4";
  const inputClass = "w-full bg-[#F4F3EF] border-none rounded-full px-4 py-2.5 text-sm text-gray-800 focus:ring-2 focus:ring-[#0B3B32] outline-none transition-shadow";
+
+ const realOffers = foundRequest.offers || [];
+ const dbAcceptedOffer = realOffers.find((o: any) => o.state === 'accepted');
+ const dbActiveOffer = realOffers.find((o: any) => o.state === 'pending' && new Date(o.expiresAt) > new Date());
+ const dbPastOffers = realOffers.filter((o: any) => o.id !== dbActiveOffer?.id && o.id !== dbAcceptedOffer?.id);
 
  return (
  <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 space-y-6 pb-24 antialiased">
@@ -271,7 +272,7 @@ export default function AssignmentDetailPage() {
  This appointment was cancelled {cancelDate ? new Date(cancelDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : ''}. Every position was released and any pending offer was closed. {clientRequested && "The client requested cancellation. "}The record is kept; the scheduled times are unchanged.
  </div>
  <div className="bg-[#F5F4F0] text-gray-600 px-6 py-4 rounded-2xl border border-gray-200 text-sm">
- Internal reason (agency only): {cancelReason}
+ Internal reason (agency only): {cancelReason || "No reason provided"}
  </div>
  </div>
  )}
@@ -312,6 +313,33 @@ export default function AssignmentDetailPage() {
  {assignment.prepNotes}
  </p>
  </div>
+
+ {foundRequest?.data?.intake?.program === 'WA ODHH' && foundRequest?.data?.intake?.odhhSrn && (
+ <div className={cardClass}>
+ <h2 className="text-[18px] font-medium text-[var(--ink)] mb-4">WA ODHH</h2>
+ <div className="flex flex-col">
+ <div className="flex justify-between items-center py-3 border-b border-gray-100">
+ <span className="text-sm text-gray-500">Service Request Number (SRN)</span>
+ <span className="text-sm text-gray-800">{foundRequest.data.intake.odhhSrn}</span>
+ </div>
+ <div className="flex justify-between items-center py-3 border-b border-gray-100">
+ <span className="text-sm text-gray-500">Access code</span>
+ <span className="text-sm text-gray-800">{foundRequest.data.intake.odhhAccessCode || 'Not provided'}</span>
+ </div>
+ </div>
+ <a 
+ href={`https://fortress.wa.gov/dshs/odhhapps/interpreters/servicerequest.aspx?id=${foundRequest.data.intake.odhhSrn}`}
+ target="_blank"
+ rel="noopener noreferrer"
+ className="inline-block mt-4 rounded-full px-5 py-2.5 text-sm font-medium text-white bg-[#0B3B32] hover:bg-[#0f4037] transition-colors"
+ >
+ Acknowledge on ODHH
+ </a>
+ <p className="text-xs text-gray-400 mt-3">
+ Staff only. Opens the state portal in a new tab; terpDESK does not submit anything to ODHH.
+ </p>
+ </div>
+ )}
 
  <div className={cardClass}>
  <h2 className="text-[18px] font-medium text-[var(--ink)] mb-2">Requester and internal information</h2>
@@ -357,52 +385,54 @@ export default function AssignmentDetailPage() {
  <h3 className="font-semibold text-[var(--ink)] mb-2">Position 1 · interpreter</h3>
  
  <div className="flex flex-wrap gap-2 mb-3">
- <span className={`px-3 py-1 text-[12px] font-medium rounded-full ${bookedInterpreter ? 'bg-green-100 text-green-700' : 'bg-[#FEF3C7] text-[#92400E]'}`}>
- Booking: {bookedInterpreter ? 'Filled' : 'Unfilled'}
+ <span className={`px-3 py-1 text-[12px] font-medium rounded-full ${dbAcceptedOffer ? 'bg-green-100 text-green-700' : 'bg-[#FEF3C7] text-[#92400E]'}`}>
+ Booking: {dbAcceptedOffer ? 'Filled' : 'Unfilled'}
  </span>
  <span className="px-3 py-1 bg-white border border-gray-200 text-gray-600 text-[12px] font-medium rounded-full ">Access: Available</span>
  </div>
  
  <p className="text-sm text-gray-700 mt-3 mb-4">
- Assigned interpreter: <span className="text-[var(--sage)]">{bookedInterpreter || 'Unfilled'}</span>
+ Assigned interpreter: <span className="text-[var(--sage)]">{dbAcceptedOffer ? dbAcceptedOffer.interpreterName : 'Unfilled'}</span>
  </p>
 
- {!bookedInterpreter ? (
+ {!dbAcceptedOffer ? (
  <>
- {previousOffers.length > 0 && (
+ {dbPastOffers.length > 0 && (
  <div className="bg-[#F5F4F0] rounded-xl p-4 mb-6">
  <div className="flex items-center gap-2 mb-3">
  <ChevronDown className="w-4 h-4 text-gray-700" />
- <span className="font-medium text-sm text-[var(--ink)]">Previous offers ({previousOffers.length})</span>
+ <span className="font-medium text-sm text-[var(--ink)]">Previous offers ({dbPastOffers.length})</span>
  </div>
- {previousOffers.map((offer, idx) => (
+ {dbPastOffers.map((offer: any, idx: number) => (
  <div key={idx} className="mb-3 last:mb-0">
  <div className="flex items-center gap-2 pl-6 flex-wrap">
- <span className="text-xs sm:text-sm text-gray-600">{offer.name} ·</span>
- <span className="bg-white border border-gray-200 text-gray-600 text-[11px] font-medium px-2 py-0.5 rounded-full ">{offer.status}</span>
+ <span className="text-xs sm:text-sm text-gray-600">{offer.interpreterName} ·</span>
+ <span className="bg-white border border-gray-200 text-gray-600 text-[11px] font-medium px-2 py-0.5 rounded-full capitalize">{offer.state}</span>
  </div>
- <div className="text-xs sm:text-sm text-[var(--sage)] pl-6 mt-1 text-wrap">{offer.status} {new Date(offer.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+ <div className="text-xs sm:text-sm text-[var(--sage)] pl-6 mt-1 text-wrap">{offer.state} {new Date(offer.expiresAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
  </div>
  ))}
  </div>
  )}
 
- {pendingOffer ? (
+ {dbActiveOffer ? (
  <div className="bg-[#F5F4F0] p-4 rounded-xl mb-4">
  <div className="flex items-center gap-2">
- <span className="text-[var(--ink)] font-medium">{pendingOffer.interpreterName}</span>
- <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold">Pending</span>
+ <span className="text-[var(--ink)] font-medium">{dbActiveOffer.interpreterName}</span>
+ <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold capitalize">{dbActiveOffer.state}</span>
  </div>
  <p className="text-sm text-[var(--sage)] mt-2 mb-4">
- Response due {pendingOffer.date} at {pendingOffer.time}
+ Response due {new Date(dbActiveOffer.expiresAt).toLocaleDateString()} at {new Date(dbActiveOffer.expiresAt).toLocaleTimeString()}
  </p>
  <button 
- onClick={() => {
- const newOffers = [...previousOffers, { name: pendingOffer.interpreterName, status: 'Withdrawn', date: new Date().toISOString() }];
- setPreviousOffers(newOffers);
- setPendingOffer(null);
- localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ previousOffers: newOffers }));
- updateRequest(id, { status: 'Unfilled / draft' });
+ onClick={async () => {
+   try {
+     await updateOfferStatus(dbActiveOffer.id, 'withdrawn');
+     const updatedRequest = await fetchLiveRequestById(id);
+     setFoundRequest(updatedRequest);
+   } catch (err) {
+     console.error(err);
+   }
  }}
  className="bg-white border border-gray-300 rounded-full px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
  >
@@ -522,28 +552,26 @@ export default function AssignmentDetailPage() {
  </>
  ) : (
  <div className="bg-[#F5F4F0] p-4 rounded-xl mb-4">
- <p className="text-sm text-[var(--ink)] font-medium mb-4">{bookedInterpreter}</p>
- <button 
- onClick={() => {
- const newOffers = [...previousOffers, { name: bookedInterpreter!, status: 'Removed', date: new Date().toISOString() }];
- setPreviousOffers(newOffers);
- setBookedInterpreter(null);
- localStorage.setItem(`agency_staffing_state_${id}`, JSON.stringify({ previousOffers: newOffers }));
-
- // Sync to interpreter
- const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
- const jobIndex = storedJobs.findIndex((job: any) => String(job.id) === String(id));
- if (jobIndex > -1) {
- storedJobs[jobIndex].status = 'released';
- localStorage.setItem('terpdesk_interpreter_jobs', JSON.stringify(storedJobs));
- }
- 
- updateRequest(id, { status: 'Unfilled / draft' });
- }}
- className="text-[var(--sage)] hover:text-[var(--ink)] text-sm font-medium transition-colors"
- >
- Remove booking
- </button>
+ <div className="flex items-center justify-between">
+   <div className="flex items-center gap-2">
+     <span className="text-sm text-[var(--ink)] font-medium">{dbAcceptedOffer.interpreterName}</span>
+     <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-semibold capitalize">Assigned</span>
+   </div>
+   <button 
+   onClick={async () => {
+     try {
+       await updateOfferStatus(dbAcceptedOffer.id, 'withdrawn');
+       const updatedRequest = await fetchLiveRequestById(id);
+       setFoundRequest(updatedRequest);
+     } catch (err) {
+       console.error(err);
+     }
+   }}
+   className="text-[var(--sage)] hover:text-red-600 text-sm font-medium transition-colors"
+   >
+   Remove booking
+   </button>
+ </div>
  </div>
  )}
 
@@ -590,8 +618,8 @@ export default function AssignmentDetailPage() {
  <label className="block text-sm text-gray-600 mb-2">Internal reason (agency only)</label>
  <input 
  type="text" 
- value={cancelReason}
- onChange={(e) => setCancelReason(e.target.value)}
+ value={cancelReasonInput}
+ onChange={(e) => setCancelReasonInput(e.target.value)}
  className="w-full bg-[#F5F4F0] border-none rounded-2xl px-4 py-3.5 text-sm text-[var(--ink)] focus:ring-2 focus:ring-[#0B3B32] outline-none" 
  />
  </div>
@@ -618,8 +646,8 @@ export default function AssignmentDetailPage() {
  </button>
  <button 
  onClick={confirmCancelAppointment} 
- disabled={!cancelReason.trim()}
- className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-[15px] font-medium transition-colors ${!cancelReason.trim() ? 'bg-[#E5B5B0] text-white opacity-70 cursor-not-allowed' : 'bg-[#C28C84] text-white hover:bg-[#B37C74]'}`}
+ disabled={!cancelReasonInput.trim()}
+ className={`w-full sm:w-auto px-5 py-2.5 rounded-full text-[15px] font-medium transition-colors ${!cancelReasonInput.trim() ? 'bg-[#E5B5B0] text-white opacity-70 cursor-not-allowed' : 'bg-[#C28C84] text-white hover:bg-[#B37C74]'}`}
  >
  Cancel all positions
  </button>

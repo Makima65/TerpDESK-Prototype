@@ -57,6 +57,8 @@ export default function InterpreterCalendarPage() {
 
   const [rules, setRules] = useState<Rule[]>([]);
   const [exceptions, setExceptions] = useState<Exception[]>([]);
+  const [baseTimezone, setBaseTimezone] = useState('America/Los_Angeles');
+  const [isLoaded, setIsLoaded] = useState(false);
   const [busyBlocks, setBusyBlocks] = useState<BusyBlock[]>([]);
 
   const [acceptedAppointments, setAcceptedAppointments] = useState<Appointment[]>([]);
@@ -87,6 +89,7 @@ export default function InterpreterCalendarPage() {
         const parsed = JSON.parse(avail);
         if (parsed.rules) setRules(parsed.rules);
         if (parsed.exceptions) setExceptions(parsed.exceptions);
+        if (parsed.baseTimezone) setBaseTimezone(parsed.baseTimezone);
       } catch (e) { }
     }
     const busy = localStorage.getItem('terpdesk_busy_blocks');
@@ -117,6 +120,7 @@ export default function InterpreterCalendarPage() {
 
     loadJobs();
     window.addEventListener('storage', loadJobs);
+    setIsLoaded(true);
     return () => window.removeEventListener('storage', loadJobs);
   }, []);
 
@@ -153,11 +157,35 @@ export default function InterpreterCalendarPage() {
   };
 
   // Save / Undo / Conflict Engine
-  const saveAvailability = () => {
-    localStorage.setItem('terpdesk_availability', JSON.stringify({ rules, exceptions }));
+  useEffect(() => {
+    if (!isLoaded) return;
+    
+    const weeklySchedule: any = {};
+    for (const rule of rules) {
+      weeklySchedule[rule.weekday] = {
+        available: true,
+        startMinute: rule.startMinute,
+        endMinute: rule.endMinute
+      };
+    }
+    const dateOverrides = exceptions.map(ex => ({
+      date: ex.date,
+      available: ex.available,
+      startMinute: ex.startMinute,
+      endMinute: ex.endMinute
+    }));
+    
+    const payload = {
+      baseTimezone,
+      weeklySchedule,
+      dateOverrides,
+      rules,
+      exceptions
+    };
+    
+    localStorage.setItem('terpdesk_availability', JSON.stringify(payload));
 
     const newConflicts: Appointment[] = [];
-
     for (const appt of acceptedAppointments) {
       const apptDateObj = appt.start;
       const dateStr = apptDateObj.getFullYear() + '-' + String(apptDateObj.getMonth() + 1).padStart(2, '0') + '-' + String(apptDateObj.getDate()).padStart(2, '0');
@@ -183,24 +211,8 @@ export default function InterpreterCalendarPage() {
         }
       }
     }
-
     setConflicts(newConflicts);
-  };
-
-  const undoAvailability = () => {
-    const avail = localStorage.getItem('terpdesk_availability');
-    if (avail) {
-      try {
-        const parsed = JSON.parse(avail);
-        setRules(parsed.rules || []);
-        setExceptions(parsed.exceptions || []);
-      } catch (e) { }
-    } else {
-      setRules([]);
-      setExceptions([]);
-    }
-    setConflicts([]);
-  };
+  }, [rules, exceptions, baseTimezone, isLoaded, acceptedAppointments]);
 
   // (Busy Time State Moved up)
 
@@ -529,6 +541,18 @@ export default function InterpreterCalendarPage() {
           Your usual working hours, plus any dates that differ. This is a preference, not a promise: nothing here cancels a booking, and an agency can still offer you work outside these hours.
         </p>
 
+        {/* Base Timezone */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-4">Base time zone</h3>
+          <select value={baseTimezone} onChange={e => setBaseTimezone(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none w-full max-w-md bg-white">
+             <option value="America/Los_Angeles">Pacific Time — Seattle, Los Angeles</option>
+             <option value="America/Denver">Mountain Time — Denver</option>
+             <option value="America/Phoenix">Arizona (no daylight saving)</option>
+             <option value="America/Chicago">Central Time — Chicago</option>
+             <option value="America/New_York">Eastern Time — New York</option>
+          </select>
+        </div>
+
         {/* Card 1: Usual weekly hours */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-4">Usual weekly hours</h3>
@@ -602,16 +626,7 @@ export default function InterpreterCalendarPage() {
           </button>
         </div>
 
-        {/* Action Buttons & Conflict Engine Output */}
-        <div className="flex items-center gap-3">
-          <button onClick={saveAvailability} className="bg-[#1B433C] text-white rounded-full px-6 py-2 text-[14px] font-medium hover:bg-[#14332D] transition-colors">
-            Save availability
-          </button>
-          <button onClick={undoAvailability} className="bg-white border border-gray-200 text-gray-700 rounded-full px-6 py-2 text-[14px] font-medium hover:bg-gray-50 transition-colors">
-            Undo changes
-          </button>
-        </div>
-
+        {/* Conflict Engine Output */}
         {conflicts.length > 0 && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 overflow-hidden">
             <div className="flex items-start gap-3">

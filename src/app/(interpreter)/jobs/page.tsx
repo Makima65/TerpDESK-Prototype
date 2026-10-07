@@ -4,63 +4,34 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { RefreshCw, MapPin } from "lucide-react";
 import { useInterpreterJobs } from "@/context/InterpreterJobsContext";
+import { useGlobalState } from "@/context/GlobalContext";
 import { motion } from "framer-motion";
+import { fetchInterpreterOffers } from "@/app/actions/getInterpreterOffers";
+import { format } from "date-fns";
 
 type Tab = "upcoming" | "past";
 
 export default function InterpreterJobsPage() {
   const { jobs } = useInterpreterJobs();
   
-  const [offers, setOffers] = useState<any[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const item = window.localStorage.getItem('terpdesk_offers');
-      if (!item) return [];
-      const parsed = JSON.parse(item);
-      return parsed.filter((o: any) => !(o.title && o.title.includes('Fictional')));
-    } catch (error) {
-      return [];
-    }
-  });
+  const { currentUser } = useGlobalState();
+  const [offers, setOffers] = useState<any[]>([]);
 
-  const [serviceRecords, setServiceRecords] = useState<any[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const item = window.localStorage.getItem('terpdesk_service_records');
-      return item ? JSON.parse(item) : [];
-    } catch (error) {
-      return [];
-    }
-  });
+  const [serviceRecords, setServiceRecords] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadOffers = () => {
-      const data = JSON.parse(localStorage.getItem('terpdesk_offers') || '[]');
-      setOffers(data.filter((o: any) => !(o.title && o.title.includes('Fictional'))));
-    };
-    
-    const loadRecords = () => {
-      const data = JSON.parse(localStorage.getItem('terpdesk_service_records') || '[]');
-      setServiceRecords(data);
-    };
-
-    loadOffers();
-    loadRecords();
-    
-    window.addEventListener('storage', loadOffers);
-    window.addEventListener('storage', loadRecords);
-    return () => {
-      window.removeEventListener('storage', loadOffers);
-      window.removeEventListener('storage', loadRecords);
-    };
-  }, []);
+    if (currentUser?.email) {
+      fetchInterpreterOffers(currentUser.email).then(data => {
+        setOffers(data);
+      }).catch(console.error);
+    }
+  }, [currentUser?.email]);
 
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
   const [pastFilter, setPastFilter] = useState("All past jobs");
 
   const upcomingBooked = jobs.filter(job => job.status === 'booked' && (!job.endsAt || new Date(job.endsAt) > new Date()));
-  const currentInterpreterId = 'terp-1'; // Mocked current interpreter id
-  const upcomingOffers = offers.filter(o => o.status === 'pending' && (!o.interpreterId || o.interpreterId === currentInterpreterId));
+  const upcomingOffers = offers.filter(o => o.status === 'pending');
   const upcomingJobs = [...upcomingOffers, ...upcomingBooked];
   const declinedReleasedJobs = jobs.filter(job => job.status === 'declined' || job.status === 'released');
   
@@ -102,9 +73,9 @@ export default function InterpreterJobsPage() {
     if (!startStr) return "Date TBD";
     const start = new Date(startStr);
     const end = endStr ? new Date(endStr) : new Date(start.getTime() + 2 * 60 * 60 * 1000);
-    const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
-    const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    const dateStr = format(start, "EEE, MMM d").toUpperCase();
+    const timeStart = format(start, "h:mm a");
+    const timeEnd = format(end, "h:mm a");
     return `${dateStr} · ${timeStart} – ${timeEnd}`;
   };
 

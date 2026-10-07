@@ -48,9 +48,9 @@ export function DevSwitcher() {
     if (value === 'staff-1') {
       newUser = { id: 'staff-1', role: 'agency', email: 'north.staff@fictional.test', agency_id: 'agency-1' };
     } else if (value === 'terp-1') {
-      newUser = { id: 'terp-1', role: 'interpreter' };
+      newUser = { id: 'terp-1', role: 'interpreter', email: 'dale.fictional@example.com' };
     } else {
-      newUser = { id: 'terp-new', role: 'interpreter' };
+      newUser = { id: 'terp-new', role: 'interpreter', email: 'new.terp@example.com' };
     }
     
     setCurrentUser(newUser);

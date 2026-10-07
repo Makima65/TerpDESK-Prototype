@@ -7,6 +7,8 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Suspense } from "react";
 import { RefreshCw, Building2, MapPin, Users2, ChevronDown } from "lucide-react";
+import { getStaffingLabel, getStaffingRatio, getStatusFilters } from "@/utils/statusEngine";
+import { fetchLiveRequests } from "@/app/actions/getRequests";
 
 function CustomSelect({ options, value, onChange }: { options: string[], value: string, onChange: (val: string) => void }) {
  const [isOpen, setIsOpen] = useState(false);
@@ -82,10 +84,24 @@ function StatusBadge({ status }: { status: string }) {
  );
 }
 
+const formatJobDate = (startsAt?: string, endsAt?: string, fallback?: string) => {
+  if (!startsAt) return fallback || "Time not specified";
+  const start = new Date(startsAt);
+  const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + 3600000);
+  const dateStr = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const timeStart = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const timeEnd = end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  return `${dateStr} · ${timeStart} – ${timeEnd}`;
+};
+
 function RequestsPageContent() {
-  const { requests } = useRequests();
+  const [requests, setRequests] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const filterParam = searchParams.get("filter");
+
+  useEffect(() => {
+    fetchLiveRequests().then(data => setRequests(data)).catch(console.error);
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [orgFilter, setOrgFilter] = useState("All organizations");
@@ -98,6 +114,16 @@ function RequestsPageContent() {
   else if (filterParam === "needs-replacement") initialStatus = "Needs replacement";
 
   const [statusFilter, setStatusFilter] = useState(initialStatus);
+
+  const [interpreterJobs, setInterpreterJobs] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      const storedJobs = JSON.parse(localStorage.getItem('terpdesk_interpreter_jobs') || '[]');
+      setInterpreterJobs(storedJobs);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const filteredRequests = requests.filter(req => {
     const searchLower = searchQuery.toLowerCase();
@@ -117,19 +143,26 @@ function RequestsPageContent() {
  if (format !== formatFilter && !(formatFilter === "In Person" && format === "In person")) return false;
  }
  
- if (statusFilter !== "Appointments") {
- if (statusFilter === "Cancelled" && req.status !== "Cancelled") return false;
- if (statusFilter === "Pending offers" && req.status !== "Awaiting response" && req.status !== "Offer awaiting response" && !req.status.includes("Awaiting")) return false;
- if (statusFilter === "Needing coverage" && req.status !== "Unfilled / draft" && !req.status.includes("Unfilled")) return false;
- if (statusFilter === "Staff follow-up" && req.status !== "Partially staffed" && req.status !== "Staff follow-up") return false;
- if (statusFilter === "Needs replacement" && req.status !== "Needs replacement") return false;
- }
- 
- return true;
- });
 
- const upcomingRequests = filteredRequests.filter((r) => r.timestamp >= Date.now() || !r.actionRequired);
- const pastRequests = filteredRequests.filter((r) => Date.now() > r.timestamp && r.actionRequired);
+  const filters = getStatusFilters(req as any);
+  
+  if (statusFilter === "Cancelled") return filters.isCancelled;
+  if (filters.isCancelled) return false;
+  
+  if (statusFilter !== "Appointments") {
+    if (statusFilter === "Needing coverage") return filters.needingCoverage;
+    if (statusFilter === "Pending offers") return filters.hasPendingOffer;
+    if (statusFilter === "Fully staffed") return filters.fullyStaffed;
+    if (statusFilter === "Needs replacement") return filters.needsReplacement;
+    if (statusFilter === "Staff follow-up") return filters.staffFollowUp;
+    return false;
+  }
+  
+  return true;
+  });
+
+  const upcomingRequests = filteredRequests.filter((r) => !r.startsAt || Date.now() < new Date(r.startsAt).getTime());
+  const pastRequests = filteredRequests.filter((r) => r.startsAt && Date.now() >= new Date(r.startsAt).getTime());
 
  return (
  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mx-auto max-w-[1200px] space-y-6 pt-2">
@@ -195,12 +228,18 @@ function RequestsPageContent() {
  <div className="space-y-5 pb-8">
  <h2 className="text-[19px] font-semibold text-[var(--ink)] pl-1">Upcoming</h2>
  <div className="space-y-4">
+ {upcomingRequests.length === 0 && <p className="text-[14px] text-[var(--sage)] pl-1">No upcoming requests match your filters.</p>}
  {upcomingRequests.map((req) => {
  const org = req.requester?.org || "Organization not provided";
  const format = req.details?.format || req.setting || "Virtual";
  const location = req.onsite?.venue || "Fictional Meet";
- const isCancelled = req.status === "Cancelled";
- const staffingText = isCancelled ? "0 of 0 staffed" : "0 of 1 staffed";
+ const isCancelled = req.status === "Cancelled" || req.state === "cancelled";
+ const { bookedCount, totalSlots, bookedSlots } = getStaffingRatio(req as any);
+ const statusLabel = getStaffingLabel(req as any);
+ let staffingText = isCancelled ? "0 of 0 staffed" : `${bookedCount} of ${totalSlots} staffed`;
+ if (bookedSlots.length > 0) {
+   staffingText += ` (${bookedSlots.map(s => s.interpreterName).join(', ')})`;
+ }
 
  return (
  <Link
@@ -211,10 +250,10 @@ function RequestsPageContent() {
  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
  <div className="space-y-1">
  <h3 className="text-[17px] font-semibold text-[var(--ink)]">{req.title}</h3>
- <p className="text-[14px] text-[var(--sage)]">{req.dateString}</p>
+ <p className="text-[14px] text-[var(--sage)]">{formatJobDate(req.startsAt, req.endsAt, req.dateString)}</p>
  </div>
  <div className="flex items-center gap-2">
- <StatusBadge status={req.status} />
+ <StatusBadge status={statusLabel} />
  </div>
  </div>
 
@@ -260,12 +299,18 @@ function RequestsPageContent() {
  </div>
  
  <div className="space-y-4">
+ {pastRequests.length === 0 && <p className="text-[14px] text-[var(--sage)] pl-1">No past requests match your filters.</p>}
  {pastRequests.map((req) => {
  const org = req.requester?.org || "Organization not provided";
  const format = req.details?.format || req.setting || "Virtual";
  const location = req.onsite?.venue || "Fictional Meet";
- const isCancelled = req.status === "Cancelled";
- const staffingText = isCancelled ? "0 of 0 staffed" : "0 of 1 staffed";
+ const isCancelled = req.status === "Cancelled" || req.state === "cancelled";
+ const { bookedCount, totalSlots, bookedSlots } = getStaffingRatio(req as any);
+ const statusLabel = getStaffingLabel(req as any);
+ let staffingText = isCancelled ? "0 of 0 staffed" : `${bookedCount} of ${totalSlots} staffed`;
+ if (bookedSlots.length > 0) {
+   staffingText += ` (${bookedSlots.map(s => s.interpreterName).join(', ')})`;
+ }
 
  return (
  <Link
@@ -276,10 +321,10 @@ function RequestsPageContent() {
  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
  <div className="space-y-1">
  <h3 className="text-[17px] font-semibold text-[var(--ink)]">{req.title}</h3>
- <p className="text-[14px] text-[var(--sage)]">{req.dateString}</p>
+ <p className="text-[14px] text-[var(--sage)]">{formatJobDate(req.startsAt, req.endsAt, req.dateString)}</p>
  </div>
  <div className="flex items-center gap-2">
- <StatusBadge status={req.status} />
+ <StatusBadge status={statusLabel} />
  </div>
  </div>
 
